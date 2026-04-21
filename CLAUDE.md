@@ -531,9 +531,9 @@ Every Claude Code session starts with:
 
 End every session by:
 
-1. Running `dotnet build` — must be clean
-2. Running `dotnet test` — must pass
-3. Running `dotnet format --verify-no-changes` — must be clean
+1. Running `dotnet build "Feral Frenzy.sln"` — must be clean
+2. Running `dotnet test FeralFrenzy.Tests/` — must pass
+3. Running `dotnet format "Feral Frenzy.sln" --verify-no-changes` — must be clean
 4. Updating `DEVLOG.md` with what was built, what decisions were made, and what is next
 
 ---
@@ -581,4 +581,4 @@ This is the project memory. It is how future sessions pick up without relitigati
 | Where does UI live? | `CanvasLayer` above the `SubViewport` — never inside it |
 | Where do parallax definitions live? | Content-layer JSON per chapter — never hardcoded |
 | What is the sprite generation pipeline? | Gemini (sprites) → Grok (animation) |
-| What runs before every commit? | `dotnet build` + `dotnet test` + `dotnet format --verify-no-changes` |
+| What runs before every commit? | `dotnet build "Feral Frenzy.sln"` + `dotnet test FeralFrenzy.Tests/` + `dotnet format "Feral Frenzy.sln" --verify-no-changes` |

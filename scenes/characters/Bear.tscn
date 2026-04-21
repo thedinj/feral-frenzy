@@ -1,0 +1,16 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://src/godot/characters/PlayerController.cs" id="1_player_ctrl"]
+[ext_resource type="Resource" path="res://data/characters/Bear_character.tres" id="2_bear_def"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_bear"]
+size = Vector2(14, 20)
+
+[node name="Bear" type="CharacterBody2D"]
+script = ExtResource("1_player_ctrl")
+Definition = ExtResource("2_bear_def")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_bear")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]

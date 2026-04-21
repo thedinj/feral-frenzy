@@ -1,4 +1,66 @@
 root = true
 
-[*]
+[*.cs]
+indent_style = space
+indent_size = 4
+end_of_line = lf
 charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+# Using directives outside namespace
+dotnet_sort_system_directives_first = true
+csharp_using_directive_placement = outside_namespace:warning
+
+# Prefer explicit types for non-obvious cases
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = false:suggestion
+
+# Braces always
+csharp_prefer_braces = true:warning
+
+# Newline preferences
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+
+# Allow underscore-prefixed private fields (project convention)
+dotnet_diagnostic.SA1309.severity = none
+
+# SA1101: no 'this.' prefix — not required in modern C#
+dotnet_diagnostic.SA1101.severity = none
+
+# SA1516: blank lines between all members — too verbose for Godot export property groups
+dotnet_diagnostic.SA1516.severity = none
+
+# SA0001: all documentation rules disabled in stylecop.json; GenerateDocumentationFile not required
+dotnet_diagnostic.SA0001.severity = none
+
+# SA1633: xmlHeader:false in stylecop.json does not fully suppress in 1.1.x — disable file-header requirement
+dotnet_diagnostic.SA1633.severity = none
+
+# SA1313: record primary constructor parameters are PascalCase in this codebase (they become properties)
+dotnet_diagnostic.SA1313.severity = none
+
+# SA1009: StyleCop 1.1.x does not recognise record ") :" inheritance syntax
+dotnet_diagnostic.SA1009.severity = none
+
+# StyleCop ordering — guidance not error; records have a different natural order
+dotnet_diagnostic.SA1201.severity = suggestion
+dotnet_diagnostic.SA1202.severity = suggestion
+
+# Roslynator — suppress rules that conflict with project style
+dotnet_diagnostic.RCS1139.severity = none
+dotnet_diagnostic.RCS1168.severity = none
+
+[*.json]
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.md]
+trim_trailing_whitespace = false
+insert_final_newline = true

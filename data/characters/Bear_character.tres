@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="FFCharacterDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/godot/characters/FFCharacterDefinition.cs" id="1_bear_def"]
+
+[resource]
+script = ExtResource("1_bear_def")
+CharacterKey = "char_bear"
+DisplayName = "Bear"
+Size = 2
+MoveSpeed = 90.0
+JumpVelocity = -270.0
+JumpArcMultiplier = 1.0
+AlwaysFitsGaps = false
+HasExtraHit = true
+WeaponDamageMultiplier = 1.6
+SecondaryAbilityKey = "ability_roar"
+SpriteFramesKey = "sprite_bear"
+PortraitKey = "portrait_bear"

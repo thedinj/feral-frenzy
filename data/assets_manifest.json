@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "1.0",
+  "assets": {
+    "sprite_bear": "res://assets/sprites/characters/bear_placeholder.png",
+    "sprite_croc": "res://assets/sprites/characters/croc_placeholder.png",
+    "sprite_hammerhead": "res://assets/sprites/characters/hammerhead_placeholder.png",
+    "sprite_honeybadger": "res://assets/sprites/characters/honeybadger_placeholder.png",
+    "scene_char_bear": "res://scenes/characters/Bear.tscn",
+    "scene_char_croc": "res://scenes/characters/Croc.tscn",
+    "scene_char_hammerhead": "res://scenes/characters/Hammerhead.tscn",
+    "scene_char_honeybadger": "res://scenes/characters/HoneyBadger.tscn"
+  }
+}

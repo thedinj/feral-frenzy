@@ -1,10 +1,9 @@
-<Project Sdk="Godot.NET.Sdk/4.6.2">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-    <TargetFramework Condition=" '$(GodotTargetPlatform)' == 'android' ">net9.0</TargetFramework>
-    <EnableDynamicLoading>true</EnableDynamicLoading>
-    <RootNamespace>FeralFrenzy</RootNamespace>
+    <RootNamespace>FeralFrenzy.Core</RootNamespace>
     <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <WarningLevel>9999</WarningLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
@@ -22,16 +21,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <AdditionalFiles Include="stylecop.json" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="FeralFrenzy.Core/FeralFrenzy.Core.csproj" />
-  </ItemGroup>
-
-  <!-- Exclude sibling projects — Godot.NET.Sdk globs **/*.cs from the project root -->
-  <ItemGroup>
-    <Compile Remove="FeralFrenzy.Core/**/*.cs" />
-    <Compile Remove="FeralFrenzy.Tests/**/*.cs" />
+    <AdditionalFiles Include="../stylecop.json" Link="stylecop.json" />
   </ItemGroup>
 </Project>
