@@ -11,16 +11,18 @@ config_version=5
 [application]
 
 config/name="Feral Frenzy"
-run/main_scene="res://scenes\\world\\TestLevel.tscn"
+run/main_scene="res://scenes/ui/Main.tscn"
 config/features=PackedStringArray("4.6", "C#", "GL Compatibility")
 config/icon="res://icon.svg"
-config/main_scene="res://scenes/world/TestLevel.tscn"
+config/main_scene="res://scenes/ui/Main.tscn"
 
 [autoload]
 
 GameStateManager="*res://src/godot/autoloads/GameStateManager.cs"
 AssetRegistry="*res://src/godot/autoloads/AssetRegistry.cs"
 InputManager="*res://src/godot/autoloads/InputManager.cs"
+EntityPool="*res://src/godot/autoloads/EntityPool.cs"
+RunSpine="*res://src/godot/autoloads/RunSpine.cs"
 
 [display]
 

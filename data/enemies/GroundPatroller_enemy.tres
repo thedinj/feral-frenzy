@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="FFEnemyDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/godot/enemies/FFEnemyDefinition.cs" id="1_gp_def"]
+
+[resource]
+script = ExtResource("1_gp_def")
+EnemyKey = "enemy_ground_patroller"
+DisplayName = "Ground Patroller"
+ChapterKey = "chapter_cretaceous"
+DifficultyWeight = 1.0
+IsEliteVariant = false
+SceneKey = "scene_enemy_ground_patroller"
+BaseCountPerPlayer = 3

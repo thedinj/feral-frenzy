@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="FFEnemyDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/godot/enemies/FFEnemyDefinition.cs" id="1_ad_def"]
+
+[resource]
+script = ExtResource("1_ad_def")
+EnemyKey = "enemy_aerial_diver"
+DisplayName = "Aerial Diver"
+ChapterKey = "chapter_cretaceous"
+DifficultyWeight = 1.5
+IsEliteVariant = false
+SceneKey = "scene_enemy_aerial_diver"
+BaseCountPerPlayer = 2

@@ -1,0 +1,33 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://src/godot/ui/MainController.cs" id="1_main_ctrl"]
+[ext_resource type="PackedScene" path="res://scenes/world/Level.tscn" id="2_level"]
+[ext_resource type="PackedScene" path="res://scenes/ui/Title.tscn" id="3_title"]
+[ext_resource type="PackedScene" path="res://scenes/ui/LoadoutSelect.tscn" id="4_loadout"]
+[ext_resource type="PackedScene" path="res://scenes/ui/HUD.tscn" id="5_hud"]
+[ext_resource type="PackedScene" path="res://scenes/ui/RunSummary.tscn" id="6_summary"]
+
+[node name="Main" type="Node"]
+script = ExtResource("1_main_ctrl")
+
+[node name="SubViewportContainer" type="SubViewportContainer" parent="."]
+offset_right = 320.0
+offset_bottom = 180.0
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="SubViewportContainer"]
+disable_3d = true
+size = Vector2i(320, 180)
+
+[node name="Level" parent="SubViewportContainer/SubViewport" instance=ExtResource("2_level")]
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+layer = 2
+
+[node name="Title" parent="CanvasLayer" instance=ExtResource("3_title")]
+
+[node name="LoadoutSelect" parent="CanvasLayer" instance=ExtResource("4_loadout")]
+
+[node name="HUD" parent="CanvasLayer" instance=ExtResource("5_hud")]
+
+[node name="RunSummary" parent="CanvasLayer" instance=ExtResource("6_summary")]

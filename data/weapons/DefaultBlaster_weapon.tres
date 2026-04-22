@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="FFWeaponDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/godot/weapons/FFWeaponDefinition.cs" id="1_blaster_def"]
+
+[resource]
+script = ExtResource("1_blaster_def")
+WeaponKey = "weapon_default_blaster"
+DisplayName = "Default Blaster"
+Tier = 0
+IsChargeable = false
+IsExplosive = false
+EightDirectional = true
+FireRate = 0.15
+ProjectileSpeed = 400.0
+BaseImpact = 1.0
+ProjectileKey = "scene_projectile"
+SpriteKey = ""
+SoundKey = ""

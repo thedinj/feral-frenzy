@@ -1,0 +1,17 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://src/godot/world/DensityTestController.cs" id="1_density_ctrl"]
+
+[sub_resource type="WorldBoundaryShape2D" id="WorldBoundaryShape2D_floor"]
+
+[node name="DensityTest" type="Node2D"]
+script = ExtResource("1_density_ctrl")
+
+[node name="Floor" type="StaticBody2D" parent="."]
+collision_layer = 1
+
+[node name="FloorShape" type="CollisionShape2D" parent="Floor"]
+position = Vector2(400, 160)
+shape = SubResource("WorldBoundaryShape2D_floor")
+
+[node name="Entities" type="Node2D" parent="."]

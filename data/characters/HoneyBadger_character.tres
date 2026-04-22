@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="FFCharacterDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/godot/characters/FFCharacterDefinition.cs" id="1_hb_def"]
+
+[resource]
+script = ExtResource("1_hb_def")
+CharacterKey = "char_honeybadger"
+DisplayName = "Honey Badger"
+Size = 1
+MoveSpeed = 110.0
+JumpVelocity = -260.0
+JumpArcMultiplier = 1.0
+AlwaysFitsGaps = true
+HasExtraHit = false
+WeaponDamageMultiplier = 1.0
+SecondaryAbilityKey = "ability_frenzy"
+SpriteFramesKey = "sprite_honeybadger"
+PortraitKey = "portrait_honeybadger"

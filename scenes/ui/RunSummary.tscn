@@ -1,0 +1,56 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/godot/ui/RunSummaryController.cs" id="1_summary_ctrl"]
+
+[node name="RunSummary" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+script = ExtResource("1_summary_ctrl")
+_killsLabel = NodePath("KillsLabel")
+_deathsLabel = NodePath("DeathsLabel")
+_timeLabel = NodePath("TimeLabel")
+
+[node name="Title" type="Label" parent="."]
+layout_mode = 1
+offset_left = 80.0
+offset_top = 30.0
+offset_right = 240.0
+offset_bottom = 50.0
+text = "RUN COMPLETE"
+horizontal_alignment = 1
+
+[node name="KillsLabel" type="Label" parent="."]
+layout_mode = 1
+offset_left = 100.0
+offset_top = 70.0
+offset_right = 220.0
+offset_bottom = 85.0
+text = "Kills: 0"
+horizontal_alignment = 1
+
+[node name="DeathsLabel" type="Label" parent="."]
+layout_mode = 1
+offset_left = 100.0
+offset_top = 90.0
+offset_right = 220.0
+offset_bottom = 105.0
+text = "Deaths: 0"
+horizontal_alignment = 1
+
+[node name="TimeLabel" type="Label" parent="."]
+layout_mode = 1
+offset_left = 100.0
+offset_top = 110.0
+offset_right = 220.0
+offset_bottom = 125.0
+text = "Time: 0:00"
+horizontal_alignment = 1
+
+[node name="PromptLabel" type="Label" parent="."]
+layout_mode = 1
+offset_left = 80.0
+offset_top = 145.0
+offset_right = 240.0
+offset_bottom = 160.0
+text = "Press any key"
+horizontal_alignment = 1

@@ -1,0 +1,39 @@
+{
+  "chapterKey": "chapter_cretaceous",
+  "displayName": "The Cretaceous",
+  "preferredGeometry": 0,
+  "defaultSightline": 0,
+  "ceilingsPreferred": false,
+  "baseHazardBudgetRatio": 0.3,
+  "enemyPool": ["enemy_ground_patroller", "enemy_aerial_diver"],
+  "hazardPool": [],
+  "mechanicPool": [],
+  "villainKey": "villain_rex",
+  "tilesetKey": "tileset_cretaceous",
+  "parallaxLayers": [
+    {
+      "spriteKey": "parallax_ch1_sky",
+      "scrollSpeedX": 0.1,
+      "scrollSpeedY": 0.0,
+      "repeatX": true,
+      "repeatY": false,
+      "zIndex": -10
+    },
+    {
+      "spriteKey": "parallax_ch1_mountains",
+      "scrollSpeedX": 0.3,
+      "scrollSpeedY": 0.0,
+      "repeatX": true,
+      "repeatY": false,
+      "zIndex": -5
+    },
+    {
+      "spriteKey": "parallax_ch1_clouds",
+      "scrollSpeedX": 0.5,
+      "scrollSpeedY": 0.0,
+      "repeatX": true,
+      "repeatY": false,
+      "zIndex": -3
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://src/godot/world/PowerUp.cs" id="1_powerup_ctrl"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_powerup"]
+size = Vector2(10, 10)
+
+[node name="PowerUp" type="Area2D"]
+script = ExtResource("1_powerup_ctrl")
+collision_layer = 0
+collision_mask = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_powerup")

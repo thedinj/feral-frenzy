@@ -1,0 +1,49 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/godot/ui/LoadoutSelectController.cs" id="1_loadout_ctrl"]
+
+[node name="LoadoutSelect" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+script = ExtResource("1_loadout_ctrl")
+
+[node name="Title" type="Label" parent="."]
+layout_mode = 1
+offset_left = 60.0
+offset_top = 20.0
+offset_right = 260.0
+offset_bottom = 40.0
+text = "SELECT CHARACTER"
+horizontal_alignment = 1
+
+[node name="P1Label" type="Label" parent="."]
+layout_mode = 1
+offset_left = 20.0
+offset_top = 60.0
+offset_right = 140.0
+offset_bottom = 80.0
+text = "P1: BEAR"
+
+[node name="P1Status" type="Label" parent="."]
+layout_mode = 1
+offset_left = 20.0
+offset_top = 80.0
+offset_right = 140.0
+offset_bottom = 95.0
+text = "Z to confirm"
+
+[node name="P2Label" type="Label" parent="."]
+layout_mode = 1
+offset_left = 180.0
+offset_top = 60.0
+offset_right = 300.0
+offset_bottom = 80.0
+text = "P2: HONEY BADGER"
+
+[node name="P2Status" type="Label" parent="."]
+layout_mode = 1
+offset_left = 180.0
+offset_top = 80.0
+offset_right = 300.0
+offset_bottom = 95.0
+text = "(X) to confirm"

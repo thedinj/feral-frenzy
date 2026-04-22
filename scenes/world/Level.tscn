@@ -1,0 +1,125 @@
+[gd_scene load_steps=16 format=3]
+
+[ext_resource type="Script" path="res://src/godot/world/LevelController.cs" id="1_level_ctrl"]
+[ext_resource type="Script" path="res://src/godot/camera/CoopCamera.cs" id="2_camera"]
+[ext_resource type="Script" path="res://src/godot/world/ExitTrigger.cs" id="3_exit_trigger"]
+[ext_resource type="PackedScene" path="res://scenes/weapons/WeaponPickup.tscn" id="4_weapon_pickup"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/GroundPatroller.tscn" id="5_ground_patroller"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/AerialDiver.tscn" id="6_aerial_diver"]
+
+[sub_resource type="WorldBoundaryShape2D" id="WorldBoundaryShape2D_floor"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_p1"]
+size = Vector2(60, 8)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_p2"]
+size = Vector2(70, 8)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_p3"]
+size = Vector2(80, 8)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_p4"]
+size = Vector2(60, 8)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_wall_l"]
+size = Vector2(8, 200)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_wall_r"]
+size = Vector2(8, 200)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_exit"]
+size = Vector2(12, 30)
+
+[node name="Level" type="Node2D"]
+script = ExtResource("1_level_ctrl")
+
+[node name="CoopCamera" type="Camera2D" parent="."]
+script = ExtResource("2_camera")
+
+[node name="Geometry" type="Node2D" parent="."]
+
+[node name="Floor" type="StaticBody2D" parent="Geometry"]
+collision_layer = 1
+
+[node name="FloorShape" type="CollisionShape2D" parent="Geometry/Floor"]
+position = Vector2(400, 170)
+shape = SubResource("WorldBoundaryShape2D_floor")
+
+[node name="WallLeft" type="StaticBody2D" parent="Geometry"]
+collision_layer = 1
+
+[node name="WallLeftShape" type="CollisionShape2D" parent="Geometry/WallLeft"]
+position = Vector2(4, 90)
+shape = SubResource("RectangleShape2D_wall_l")
+
+[node name="WallRight" type="StaticBody2D" parent="Geometry"]
+collision_layer = 1
+
+[node name="WallRightShape" type="CollisionShape2D" parent="Geometry/WallRight"]
+position = Vector2(796, 90)
+shape = SubResource("RectangleShape2D_wall_r")
+
+[node name="Platform1" type="StaticBody2D" parent="Geometry"]
+collision_layer = 1
+
+[node name="Platform1Shape" type="CollisionShape2D" parent="Geometry/Platform1"]
+position = Vector2(150, 130)
+shape = SubResource("RectangleShape2D_p1")
+
+[node name="Platform2" type="StaticBody2D" parent="Geometry"]
+collision_layer = 1
+
+[node name="Platform2Shape" type="CollisionShape2D" parent="Geometry/Platform2"]
+position = Vector2(290, 110)
+shape = SubResource("RectangleShape2D_p2")
+
+[node name="Platform3" type="StaticBody2D" parent="Geometry"]
+collision_layer = 1
+
+[node name="Platform3Shape" type="CollisionShape2D" parent="Geometry/Platform3"]
+position = Vector2(450, 125)
+shape = SubResource("RectangleShape2D_p3")
+
+[node name="Platform4" type="StaticBody2D" parent="Geometry"]
+collision_layer = 1
+
+[node name="Platform4Shape" type="CollisionShape2D" parent="Geometry/Platform4"]
+position = Vector2(620, 110)
+shape = SubResource("RectangleShape2D_p4")
+
+[node name="ExitTrigger" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_exit_trigger")
+position = Vector2(760, 150)
+
+[node name="ExitShape" type="CollisionShape2D" parent="ExitTrigger"]
+shape = SubResource("RectangleShape2D_exit")
+
+[node name="Entities" type="Node2D" parent="."]
+
+[node name="PlayerSpawns" type="Node2D" parent="."]
+
+[node name="Spawn1" type="Node2D" parent="PlayerSpawns"]
+position = Vector2(40, 150)
+
+[node name="Spawn2" type="Node2D" parent="PlayerSpawns"]
+position = Vector2(65, 150)
+
+[node name="WeaponPickup" parent="." instance=ExtResource("4_weapon_pickup")]
+position = Vector2(120, 155)
+
+[node name="GroundPatroller1" parent="." instance=ExtResource("5_ground_patroller")]
+position = Vector2(300, 155)
+
+[node name="GroundPatroller2" parent="." instance=ExtResource("5_ground_patroller")]
+position = Vector2(500, 155)
+
+[node name="GroundPatroller3" parent="." instance=ExtResource("5_ground_patroller")]
+position = Vector2(650, 155)
+
+[node name="AerialDiver1" parent="." instance=ExtResource("6_aerial_diver")]
+position = Vector2(400, 80)
+
+[node name="AerialDiver2" parent="." instance=ExtResource("6_aerial_diver")]
+position = Vector2(600, 80)

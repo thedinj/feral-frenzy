@@ -1,25 +1,25 @@
 [gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://src/godot/characters/PlayerController.cs" id="1_player_ctrl"]
-[ext_resource type="Resource" path="res://data/characters/Bear_character.tres" id="2_bear_def"]
+[ext_resource type="Resource" path="res://data/characters/HoneyBadger_character.tres" id="2_hb_def"]
 [ext_resource type="SpriteFrames" path="res://data/placeholder_frames.tres" id="3_frames"]
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_bear"]
-size = Vector2(14, 20)
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_hb"]
+size = Vector2(12, 18)
 
-[node name="Bear" type="CharacterBody2D"]
+[node name="HoneyBadger" type="CharacterBody2D"]
 collision_layer = 2
 collision_mask = 1
 script = ExtResource("1_player_ctrl")
-Definition = ExtResource("2_bear_def")
+Definition = ExtResource("2_hb_def")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
-shape = SubResource("RectangleShape2D_bear")
+shape = SubResource("RectangleShape2D_hb")
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
-scale = Vector2(0.15, 0.15)
+scale = Vector2(0.13, 0.13)
 sprite_frames = ExtResource("3_frames")
 animation = &"idle"
 
 [node name="WeaponMount" type="Node2D" parent="."]
-position = Vector2(8, -2)
+position = Vector2(7, -2)
