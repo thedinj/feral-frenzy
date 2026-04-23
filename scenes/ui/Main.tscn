@@ -7,13 +7,16 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/HUD.tscn" id="5_hud"]
 [ext_resource type="PackedScene" path="res://scenes/ui/RunSummary.tscn" id="6_summary"]
 
-[node name="Main" type="Node"]
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
 script = ExtResource("1_main_ctrl")
 
 [node name="SubViewportContainer" type="SubViewportContainer" parent="."]
-offset_right = 320.0
-offset_bottom = 180.0
+layout_mode = 1
+anchors_preset = 15
 stretch = true
+texture_filter = 1
 
 [node name="SubViewport" type="SubViewport" parent="SubViewportContainer"]
 disable_3d = true

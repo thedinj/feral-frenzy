@@ -19,6 +19,7 @@ public static class AssetKeys
     public const string SceneCharHoneyBadger = "scene_char_honeybadger";
 
     // Weapons / projectiles
+    public const string WeaponDefDefaultBlaster = "weapon_def_default_blaster";
     public const string SceneProjectile = "scene_projectile";
     public const string SceneWeaponPickup = "scene_weapon_pickup";
 

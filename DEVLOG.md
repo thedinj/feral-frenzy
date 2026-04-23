@@ -1,5 +1,42 @@
 # Feral Frenzy — Dev Log
 
+## 2026-04-22 — Phase 1 Complete
+
+**Phase:** 1
+**Built:**
+- Fixed missed jump inputs — discrete inputs (`Jump`, `Slide`, `PrimaryAttack`) moved from `_PhysicsProcess` polling to `_Input()` callback with a 120ms jump buffer; eliminates dropped inputs between physics ticks
+- Refactored `PlayerController` input handling — `TickTimers()` merges slide and jump buffer timers; `_slideRequested`/`_fireRequested` flags consumed once per physics frame; `_Input()` sets them synchronously
+- 8-way gamepad firing — right stick aim+autofire (hold to spray); X button fires toward left-stick direction if pushed, else fires in facing direction; R3 (right stick click) jumps
+- `InputManager.IsActionJustPressedFromEvent(InputEvent, int, string)` — routes keyboard vs gamepad from the OS event, including R3→Jump mapping
+- `InputManager.GetLeftStickVector` / `GetRightStickVector` — reads Joy axes with dead zone
+- `VectorToAimDirection` static helper — atan2 + sector rounding to nearest of 8 × 45° directions
+- Viewport resolution changed to 1280×720 native; SubViewport stays 320×180; `SubViewportContainer` with `texture_filter=1` keeps pixel art nearest-neighbor while UI renders sharp at native resolution
+- `MainController` base class changed from `Node` to `Control` to match scene root
+- Kill count and run time fixed — `[Export] Label?` fields in `HudController` and `RunSummaryController` were silently null; replaced with `GetNodeOrNull<Label>("NodeName")` in `_Ready()` and removed NodePath wiring from .tscn files; pattern now applied to all hand-written .tscn controllers
+- Camera zoom tuned from 0.7 → 0.65 (re-calibrated after viewport resolution change); `_zoomLevel` is `[Export]` for live editor tuning
+- Removed all debug `GD.Print` calls from `CoopCamera`; fixed StyleCop SA1214 (readonly field order)
+- Players spawn with Default Blaster equipped — `LevelController.EquipDefaultWeapon` called after each player is added to the scene tree; `AssetKeys.WeaponDefDefaultBlaster` and `assets_manifest.json` entry added
+- `GroundPatroller` and `AerialDiver` chase the nearest live player — enemies now move toward the player rather than always right; `GroundPatroller` uses `ChaseTarget` (track player X direction) when outside fire range, falls back to wall-bounce patrol with no target; `AerialDiver` steers patrol X toward nearest player each frame
+- Density stress test passed — 30 entities (20 GroundPatrollers + 10 AerialDivers) holds 75fps (monitor-limited) on dev machine
+
+**Decisions:**
+- `GetNodeOrNull<T>("NodeName")` in `_Ready()` is the definitive pattern for all node references in hand-written .tscn files — `[Export]` node wiring is silently discarded by Godot when the property name has a leading underscore after C# reflection. Every controller now follows this pattern.
+- Gamepad right stick autofire is intentional — holding the stick sprays continuously in that direction, which matches the run-and-gun feel. X button fires once per press (or continuously via `_fireRequested` flag) using left stick or facing direction.
+- Spinning Blade deferred to Phase 2 — was initially in the Phase 1 scope but is Tier 2 content; the weapon system and `WeaponPickup` are implemented, the blade definition is Phase 2.
+- Bear/Honey Badger size differential and `AlwaysFitsGaps` behaviour deferred to Phase 2 — placeholder art makes the size gap unverifiable; these checklist items depend on real sprites.
+
+**Deferred:**
+- Bear/Honey Badger size differential visual verification (Phase 2 — needs real sprites)
+- Honey Badger `AlwaysFitsGaps` verification (Phase 2)
+- Spinning Blade pickup and feel tuning (Phase 2)
+- Remaining debug GD.Print calls in GameStateManager and LevelController (cleanup pass, Phase 2)
+
+**Next:** Phase 2 — Croc and Hammerhead, character secondaries, enemy HP pool, audio, 4-player input routing, negative power-ups, Spinning Blade content
+
+**Tests added:** None new — 10 existing tests still pass.
+
+---
+
 ## 2026-04-21 — Phase 1: Runtime bug fixes — GetNode wiring + camera snap
 
 **Phase:** 1

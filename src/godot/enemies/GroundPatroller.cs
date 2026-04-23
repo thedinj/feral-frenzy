@@ -32,10 +32,17 @@ public partial class GroundPatroller : EnemyController
 
         _target = FindNearestPlayer();
 
-        if (_target is not null
-            && GlobalPosition.DistanceTo(_target.GlobalPosition) < _fireRange)
+        if (_target is not null)
         {
-            TryFire((float)delta);
+            float dist = GlobalPosition.DistanceTo(_target.GlobalPosition);
+            if (dist < _fireRange)
+            {
+                TryFire((float)delta);
+            }
+            else
+            {
+                ChaseTarget(_target);
+            }
         }
         else
         {
@@ -46,6 +53,21 @@ public partial class GroundPatroller : EnemyController
     protected override void OnReady()
     {
         AddToGroup("enemies");
+    }
+
+    private void ChaseTarget(PlayerController target)
+    {
+        float dir = Mathf.Sign(target.GlobalPosition.X - GlobalPosition.X);
+        if (dir != 0f)
+        {
+            _patrolDirection = dir;
+        }
+
+        Velocity = Velocity with { X = _patrolSpeed * _patrolDirection };
+        if (IsOnWall())
+        {
+            _patrolDirection *= -1f;
+        }
     }
 
     private void Patrol()

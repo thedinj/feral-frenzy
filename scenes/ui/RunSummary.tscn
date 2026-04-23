@@ -6,9 +6,6 @@
 layout_mode = 3
 anchors_preset = 15
 script = ExtResource("1_summary_ctrl")
-_killsLabel = NodePath("KillsLabel")
-_deathsLabel = NodePath("DeathsLabel")
-_timeLabel = NodePath("TimeLabel")
 
 [node name="Title" type="Label" parent="."]
 layout_mode = 1

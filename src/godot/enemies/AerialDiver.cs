@@ -63,17 +63,47 @@ public partial class AerialDiver : EnemyController
 
     private void DoPatrol(float delta)
     {
-        Velocity = new Vector2(_patrolSpeed * _patrolDirection, 0f);
-
-        // Bounce at screen edges (rough bounds for Phase 1)
-        if (GlobalPosition.X < 10f || GlobalPosition.X > 790f)
+        PlayerController? nearest = FindNearestPlayer();
+        if (nearest is not null)
+        {
+            float dir = Mathf.Sign(nearest.GlobalPosition.X - GlobalPosition.X);
+            if (dir != 0f)
+            {
+                _patrolDirection = dir;
+            }
+        }
+        else if (GlobalPosition.X < 10f || GlobalPosition.X > 790f)
         {
             _patrolDirection *= -1f;
         }
 
         // Maintain patrol height
         float heightError = _targetY - GlobalPosition.Y;
-        Velocity = Velocity with { Y = heightError * 5f };
+        Velocity = new Vector2(_patrolSpeed * _patrolDirection, heightError * 5f);
+    }
+
+    private PlayerController? FindNearestPlayer()
+    {
+        var players = GetTree().GetNodesInGroup("players");
+        PlayerController? nearest = null;
+        float nearestDist = float.MaxValue;
+
+        foreach (Node node in players)
+        {
+            if (node is not PlayerController player || player.IsDown || player.IsDead)
+            {
+                continue;
+            }
+
+            float dist = GlobalPosition.DistanceTo(player.GlobalPosition);
+            if (dist < nearestDist)
+            {
+                nearestDist = dist;
+                nearest = player;
+            }
+        }
+
+        return nearest;
     }
 
     private void CheckForDive()

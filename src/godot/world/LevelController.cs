@@ -9,6 +9,7 @@ using FeralFrenzy.Godot.Camera;
 using FeralFrenzy.Godot.Characters;
 using FeralFrenzy.Godot.Constants;
 using FeralFrenzy.Godot.Importer;
+using FeralFrenzy.Godot.Weapons;
 using Godot;
 
 namespace FeralFrenzy.Godot.World;
@@ -163,6 +164,7 @@ public partial class LevelController : Node2D
             }
 
             _entities.AddChild(player);
+            EquipDefaultWeapon(player);
             _players.Add(player);
             _gameState.RegisterPlayer(i);
             _camera?.RegisterPlayer(player);
@@ -195,6 +197,18 @@ public partial class LevelController : Node2D
 
         _downPlayer = null;
         _reviveHoldTimer = 0f;
+    }
+
+    private void EquipDefaultWeapon(PlayerController player)
+    {
+        FFWeaponDefinition? def = _registry.Load<FFWeaponDefinition>(AssetKeys.WeaponDefDefaultBlaster);
+        if (def is null)
+        {
+            GD.PushWarning("LevelController: DefaultBlaster definition not found — player spawns unarmed.");
+            return;
+        }
+
+        player.EquipWeapon(new WeaponController { Definition = def });
     }
 
     private PlayerController? SpawnPlayer(int playerIndex)

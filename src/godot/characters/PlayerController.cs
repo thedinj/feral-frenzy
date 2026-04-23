@@ -142,6 +142,24 @@ public partial class PlayerController : CharacterBody2D
         _weaponMount?.AddChild(weapon);
     }
 
+    private static AimDirection VectorToAimDirection(Vector2 v)
+    {
+        float angle = Mathf.Atan2(v.Y, v.X);
+        int sector = ((Mathf.RoundToInt(angle / (Mathf.Pi / 4f)) % 8) + 8) % 8;
+        return sector switch
+        {
+            0 => AimDirection.Right,
+            1 => AimDirection.DownRight,
+            2 => AimDirection.Down,
+            3 => AimDirection.DownLeft,
+            4 => AimDirection.Left,
+            5 => AimDirection.UpLeft,
+            6 => AimDirection.Up,
+            7 => AimDirection.UpRight,
+            _ => AimDirection.Right,
+        };
+    }
+
     private void GoDown()
     {
         IsDown = true;
@@ -249,6 +267,32 @@ public partial class PlayerController : CharacterBody2D
 
     private void HandleAiming()
     {
+        if (PlayerIndex == InputConstants.GamepadPlayerIndex)
+        {
+            // Right stick: aim in any of 8 directions and auto-fire.
+            Vector2 rightStick = _input.GetRightStickVector(PlayerIndex);
+            if (rightStick.Length() > InputConstants.GamepadAimThreshold)
+            {
+                _aimDirection = VectorToAimDirection(rightStick);
+                _fireRequested = true;
+                return;
+            }
+
+            // Left stick: aim in whatever direction the player is pushing.
+            // X button then fires in that direction.
+            Vector2 leftStick = _input.GetLeftStickVector(PlayerIndex);
+            if (leftStick.Length() > InputConstants.GamepadDeadZone)
+            {
+                _aimDirection = VectorToAimDirection(leftStick);
+                return;
+            }
+
+            // Fallback: face direction.
+            _aimDirection = _sprite?.FlipH ?? false ? AimDirection.Left : AimDirection.Right;
+            return;
+        }
+
+        // Keyboard P1: facing direction + optional up/down modifier → 6 directions.
         bool up = _input.IsActionPressed(PlayerIndex, InputActions.AimUp);
         bool down = _input.IsActionPressed(PlayerIndex, InputActions.AimDown);
         bool facingLeft = _sprite?.FlipH ?? false;

@@ -6,33 +6,29 @@ namespace FeralFrenzy.Godot.UI;
 
 public partial class RunSummaryController : Control
 {
-    [Export]
-    private Label? _killsLabel;
-
-    [Export]
-    private Label? _deathsLabel;
-
-    [Export]
-    private Label? _timeLabel;
-
     // Initialized in _Ready — Godot does not call _Ready during construction
     private GameStateManager _gameState = null!;
 
+    // Resolved via GetNodeOrNull in _Ready — [Export] Label wiring unreliable in hand-written .tscn
+    private Label? _killsLabel;
+    private Label? _deathsLabel;
+    private Label? _timeLabel;
+
     public override void _Ready()
     {
+        _killsLabel = GetNodeOrNull<Label>("KillsLabel");
+        _deathsLabel = GetNodeOrNull<Label>("DeathsLabel");
+        _timeLabel = GetNodeOrNull<Label>("TimeLabel");
+
         _gameState = GetNode<GameStateManager>("/root/GameStateManager");
         _gameState.StateChanged += OnStateChanged;
+
         Visible = _gameState.Current == GameState.RunSummary;
     }
 
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (!Visible)
-        {
-            return;
-        }
-
-        if (_gameState.Current != GameState.RunSummary)
+        if (!Visible || _gameState.Current != GameState.RunSummary)
         {
             return;
         }

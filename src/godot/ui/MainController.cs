@@ -4,7 +4,7 @@ using Godot;
 
 namespace FeralFrenzy.Godot.UI;
 
-public partial class MainController : Node
+public partial class MainController : Control
 {
     // Initialized in _Ready — Godot does not call _Ready during construction
     private GameStateManager _gameState = null!;

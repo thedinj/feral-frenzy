@@ -14,6 +14,7 @@
     "scene_char_croc": "res://scenes/characters/Bear.tscn",
     "scene_char_hammerhead": "res://scenes/characters/Bear.tscn",
     "scene_char_honeybadger": "res://scenes/characters/HoneyBadger.tscn",
+    "weapon_def_default_blaster": "res://data/weapons/DefaultBlaster_weapon.tres",
     "scene_projectile": "res://scenes/weapons/Projectile.tscn",
     "scene_weapon_pickup": "res://scenes/weapons/WeaponPickup.tscn",
     "scene_power_up": "res://scenes/world/PowerUp.tscn",

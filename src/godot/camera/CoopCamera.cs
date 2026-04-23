@@ -9,12 +9,13 @@ public partial class CoopCamera : Camera2D
 {
     private readonly List<PlayerController> _players = new List<PlayerController>();
 
+    // <1.0 zooms out — 0.5 shows 640 world-units wide at 320×180 base resolution.
+    // Tune this export in the editor until the view reads as a wide battlefield.
+    [Export]
+    private float _zoomLevel = 0.65f;
+
     [Export]
     private float _followSpeed = 4f;
-
-    // <1.0 = zoomed out, gives panoramic battlefield view
-    [Export]
-    private float _zoomLevel = 0.7f;
 
     private bool _snapOnNextFrame;
 
@@ -22,8 +23,6 @@ public partial class CoopCamera : Camera2D
     {
         Zoom = new Vector2(_zoomLevel, _zoomLevel);
     }
-
-    private float _debugLogTimer;
 
     public override void _Process(double delta)
     {
@@ -42,37 +41,31 @@ public partial class CoopCamera : Camera2D
             sum += p.GlobalPosition;
         }
 
-        Vector2 targetPos = sum / alive.Count;
+        Vector2 target = sum / alive.Count;
 
         if (_snapOnNextFrame)
         {
-            GlobalPosition = targetPos;
+            GlobalPosition = target;
             _snapOnNextFrame = false;
-            GD.Print($"[CAM] Snapped to {GlobalPosition}");
         }
         else
         {
-            GlobalPosition = GlobalPosition.Lerp(targetPos, _followSpeed * (float)delta);
-        }
-
-        _debugLogTimer -= (float)delta;
-        if (_debugLogTimer <= 0f)
-        {
-            GD.Print($"[CAM] pos={GlobalPosition} zoom={Zoom} target={targetPos} players={alive.Count}");
-            _debugLogTimer = 3f;
+            GlobalPosition = GlobalPosition.Lerp(target, _followSpeed * (float)delta);
         }
     }
 
     public void RegisterPlayer(PlayerController player)
     {
-        if (!_players.Contains(player))
+        if (_players.Contains(player))
         {
-            _players.Add(player);
-            GD.Print($"[CAM] RegisterPlayer: {player.Name} at {player.GlobalPosition}, total={_players.Count}");
-            if (_players.Count == 1)
-            {
-                _snapOnNextFrame = true;
-            }
+            return;
+        }
+
+        _players.Add(player);
+
+        if (_players.Count == 1)
+        {
+            _snapOnNextFrame = true;
         }
     }
 

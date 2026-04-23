@@ -75,11 +75,41 @@ public partial class InputManager : Node
             && joy.Pressed
             && joy.Device == InputConstants.GamepadDevice)
         {
+            // R3 (right stick press) is an additional jump binding
+            if (action == InputActions.Jump && joy.ButtonIndex == JoyButton.RightStick)
+            {
+                return true;
+            }
+
             JoyButton? button = ActionToJoyButton(action);
             return button is not null && joy.ButtonIndex == button.Value;
         }
 
         return false;
+    }
+
+    public Vector2 GetLeftStickVector(int playerIndex)
+    {
+        if (playerIndex != InputConstants.GamepadPlayerIndex)
+        {
+            return Vector2.Zero;
+        }
+
+        return new Vector2(
+            Input.GetJoyAxis(InputConstants.GamepadDevice, JoyAxis.LeftX),
+            Input.GetJoyAxis(InputConstants.GamepadDevice, JoyAxis.LeftY));
+    }
+
+    public Vector2 GetRightStickVector(int playerIndex)
+    {
+        if (playerIndex != InputConstants.GamepadPlayerIndex)
+        {
+            return Vector2.Zero;
+        }
+
+        return new Vector2(
+            Input.GetJoyAxis(InputConstants.GamepadDevice, JoyAxis.RightX),
+            Input.GetJoyAxis(InputConstants.GamepadDevice, JoyAxis.RightY));
     }
 
     private static JoyButton? ActionToJoyButton(string action)

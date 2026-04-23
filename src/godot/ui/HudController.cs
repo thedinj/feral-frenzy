@@ -6,24 +6,24 @@ namespace FeralFrenzy.Godot.UI;
 
 public partial class HudController : Control
 {
-    [Export]
-    private Label? _killLabel;
-
-    [Export]
-    private Label? _reviveLabel;
-
-    [Export]
-    private float _reviveCountdown;
-
     // Initialized in _Ready — Godot does not call _Ready during construction
     private GameStateManager _gameState = null!;
 
+    // Resolved via GetNodeOrNull in _Ready — [Export] Label wiring unreliable in hand-written .tscn
+    private Label? _killLabel;
+    private Label? _reviveLabel;
+
+    private float _reviveCountdown;
+
     public override void _Ready()
     {
+        _killLabel = GetNodeOrNull<Label>("KillLabel");
+        _reviveLabel = GetNodeOrNull<Label>("ReviveLabel");
+
         _gameState = GetNode<GameStateManager>("/root/GameStateManager");
         _gameState.StateChanged += OnStateChanged;
-        Visible = _gameState.Current == GameState.Segment
-            || _gameState.Current == GameState.ReviveWindow;
+
+        Visible = _gameState.Current is GameState.Segment or GameState.ReviveWindow;
 
         if (_reviveLabel is not null)
         {

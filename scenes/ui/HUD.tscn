@@ -6,8 +6,6 @@
 layout_mode = 3
 anchors_preset = 15
 script = ExtResource("1_hud_ctrl")
-_killLabel = NodePath("KillLabel")
-_reviveLabel = NodePath("ReviveLabel")
 
 [node name="KillLabel" type="Label" parent="."]
 layout_mode = 1
