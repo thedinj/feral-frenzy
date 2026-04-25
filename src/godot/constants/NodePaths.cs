@@ -11,4 +11,11 @@ public static class NodePaths
     public const string LevelEntities = "Entities";
     public const string LevelPlayerSpawns = "PlayerSpawns";
     public const string LevelCamera = "CoopCamera";
+
+    // EnemyHost component slot names (fixed child node names, resolved in EnemyHost._Ready)
+    public const string EnemyBehavior = "Behavior";
+    public const string EnemyGravity = "Gravity";
+    public const string EnemyHitStun = "HitStun";
+    public const string EnemyDeath = "Death";
+    public const string EnemyVisuals = "Visuals";
 }

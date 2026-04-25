@@ -603,6 +603,56 @@ This is the established gamepad feel. Do not change it without explicit instruct
 
 `InputManager.GetRightStickVector(playerIndex)` and `InputManager.GetLeftStickVector(playerIndex)` return the stick vectors with dead zone applied. `VectorToAimDirection(Vector2)` converts to the nearest of 8 directions.
 
+### The Enemy Component Architecture Rule — Established Phase 2
+
+**`EnemyHost` is the only enemy base class. There are no `EnemyController` subclasses.**
+
+Each enemy is a scene tree composed from `EnemyHost` (the root) and child component nodes. The enemy's behavior, gravity, hit stun, death sequence, and visual effects are all injected via fixed-name child slots — never via virtual method overrides.
+
+**The four behavior interfaces** (`src/godot/enemies/behaviors/`):
+- `ITickBehavior` — AI logic; called once per physics frame when not stunned
+- `IGravityBehavior` — applies gravity to host each frame
+- `IDeathBehavior` — drives death sequence (animation, QueueFree)
+- `IDamageBehavior` — optionally intercepts `TakeDamage` before the HP pool (MountedDino rider phase); return `false` to absorb, `true` to pass through
+
+**Fixed child node slot names** (defined in `NodePaths`):
+```
+EnemyHost root
+├── HitStun   → HitStunComponent     (implements nothing; owns timer + IsActive)
+├── Gravity   → DownwardGravity or NullGravity   (implements IGravityBehavior)
+├── Behavior  → [any ITickBehavior node]          (also IDamageBehavior if needed)
+├── Death     → DefaultDeath or BossDeath         (implements IDeathBehavior; optional)
+└── Visuals   → EnemyVisuals                      (subscribes to HpChanged for hit flash)
+```
+
+**`EnemyHost._PhysicsProcess` is sealed** — it drives the four interfaces in fixed order:
+```csharp
+public sealed override void _PhysicsProcess(double delta)
+{
+    if (IsDead) return;
+    float f = (float)delta;
+    _gravity.Apply(this, f);
+    _hitStun.Tick(f);
+    if (!IsHitStunned) _tick.Tick(this, f);
+    else Velocity = Velocity with { X = 0f };
+    MoveAndSlide();
+}
+```
+
+**Behaviors signal up — they never call `LevelController` or `AssetRegistry` directly:**
+- Behavior nodes call `host.RequestProjectile(dir, speed, impact)` → emits `ProjectileSpawnRequested` signal → `LevelController` subscribes and builds the projectile
+- Behavior nodes call `host.RequestMinions(assetKey, offset1, offset2)` → emits `MinionSummonRequested` signal → `LevelController` subscribes and spawns via `EntityPool`
+
+**Godot cannot resolve `GetNode<IInterface>(path)`.** The pattern for interface resolution in `_Ready()` is:
+```csharp
+Node? node = GetNodeOrNull<Node>(NodePaths.EnemyBehavior)
+    ?? throw new InvalidOperationException($"{Name}: missing behavior node.");
+_tick = node as ITickBehavior
+    ?? throw new InvalidOperationException($"{Name}: node does not implement ITickBehavior.");
+```
+
+**`EnemyVisuals` handles hit flash only** (subscribed to `HpChanged`). `DefaultDeath` handles the full death sequence — animation + `AnimationFinished → QueueFree` — or a fade tween if no death animation exists. Do not put `QueueFree` logic in `EnemyVisuals`.
+
 ### The GameStateManager Event Rule
 
 `GameStateManager.StateChanged` is a plain C# event, not a Godot `[Signal]`. It passes `GameStateNode` instances directly — no casting, no magic numbers.
@@ -655,6 +705,11 @@ There is no `GameState` enum. Each state is its own class. `Current` returns `Ga
 - Create a `GameState` enum — states are classes, not enum values; `GameStateManager.Current` returns `GameStateNode`
 - Add a `Timer` field to `GameStateManager` for per-state behavior — use `IAutoTransition` on the state class instead
 - Put game-world tracking (player rosters, entity counts, positions) in `GameStateContext` — that belongs in scene systems like `LevelController`
+- Subclass `EnemyHost` to create an enemy variant — compose via child behavior/component nodes instead
+- Override virtual methods on `EnemyHost` — there are none; `_PhysicsProcess` is sealed
+- Call `LevelController.Instance` or `AssetRegistry` from a behavior node — signal up via `host.RequestProjectile` / `host.RequestMinions`
+- Use `GetNode<IInterface>(path)` — Godot can't resolve interface types; use `GetNodeOrNull<Node>(path) as IInterface ?? throw`
+- Put death sequence logic (QueueFree, tween) in `EnemyVisuals` — that belongs in `DefaultDeath` or `BossDeath`
 
 ---
 
@@ -727,4 +782,9 @@ This is the project memory. It is how future sessions pick up without relitigati
 | How many jumps do characters get? | 2 (MaxJumps=2, all characters) |
 | How are discrete inputs handled? | `_Input()` sets flag, `_PhysicsProcess()` consumes it |
 | How does GameStateManager notify state changes? | C# `event Action<GameStateNode, GameStateNode>` — check with `is` patterns |
+| How are enemy variants created? | Compose child nodes (Behavior/Gravity/Death/Visuals) — never subclass EnemyHost |
+| How do enemy behaviors spawn projectiles? | `host.RequestProjectile(dir, speed, impact)` — LevelController subscribes and builds it |
+| How do enemy behaviors summon minions? | `host.RequestMinions(assetKey, offset1, offset2)` — LevelController subscribes and uses EntityPool |
+| How to resolve an interface from a node path? | `GetNodeOrNull<Node>(path) as IInterface ?? throw` — Godot can't do `GetNode<IInterface>()` |
+| Where is EnemyHost component spec? | `src/godot/enemies/EnemyHost.cs` + `behaviors/` + `components/` |
 | What runs before every commit? | `dotnet build` + `dotnet test` + `dotnet format --verify-no-changes` |

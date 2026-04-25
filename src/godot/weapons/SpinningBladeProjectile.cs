@@ -76,7 +76,7 @@ public partial class SpinningBladeProjectile : Area2D, IPlayerProjectile
 
     private void OnBodyEntered(Node body)
     {
-        if (body is not EnemyController enemy)
+        if (body is not EnemyHost enemy)
         {
             return;
         }

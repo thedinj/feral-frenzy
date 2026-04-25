@@ -51,7 +51,7 @@ public partial class ProjectileController : Area2D, IPlayerProjectile
     {
         switch (_owner)
         {
-            case ProjectileOwner.Player when body is EnemyController enemy:
+            case ProjectileOwner.Player when body is EnemyHost enemy:
                 enemy.TakeDamage(_impact);
                 break;
             case ProjectileOwner.Enemy when body is PlayerController player:

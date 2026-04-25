@@ -22,41 +22,68 @@ The run spine is not a separate system that competes with the state manager. It 
 
 ---
 
-## The State Enum
+## States — Class-Based, Not an Enum
+
+**There is no `GameState` enum.** Each state is its own sealed class that extends `GameStateNode`. `GameStateManager.Current` returns a `GameStateNode`. Check state with `is` patterns — never with equality comparisons against an enum value.
 
 ```csharp
-// src/godot/autoloads/GameState.cs
-public enum GameState
+// src/godot/autoloads/GameStateManager.cs — state base + transition pattern
+public abstract class GameStateNode { }
+
+// Implemented states (each in its own file under src/godot/autoloads/):
+public sealed class TitleState        : GameStateNode { }
+public sealed class LoadoutSelectState: GameStateNode { }
+public sealed class SegmentState      : GameStateNode { }
+public sealed class SegmentRestartState : GameStateNode, IAutoTransition { ... }
+public sealed class BossFightState    : GameStateNode { }
+public sealed class VillainExitState  : GameStateNode { }
+public sealed class RunSummaryState   : GameStateNode { }
+// Future: BossIntroState, CinematicState, GradiusLevelState, BrawlerLevelState, etc.
+
+// Checking current state — always use 'is' patterns:
+if (_gameState.Current is BossFightState) { ... }
+if (_gameState.Current is SegmentState or BossFightState) { ... }
+```
+
+**States with timed auto-transitions implement `IAutoTransition`:**
+```csharp
+public interface IAutoTransition
 {
-    // ── Top-level modes ──────────────────────────────
-    Title,              // main menu — new run, editor, credits, options
-    Attract,            // plays if title is idle for AttractIdleSeconds
-    LoadoutSelect,      // character + weapon selection, 1–4 players
+    float GetDelay(StatePayload? payload);
+    (Type Next, StatePayload? Payload)? SelectNext(GameStateContext ctx);
+}
 
-    // ── Run spine states ─────────────────────────────
-    Segment,            // active gameplay — enemies, hazards, movement
-    BossIntro,          // villain reveal moment before the fight
-    BossFight,          // chapter boss encounter
-    VillainExit,        // defeat cinematic + The Laugh beat
-    GradiusLevel,       // full mode switch — horizontal shooter
-    BrawlerLevel,       // full mode switch — top-down beat em up
-
-    // ── Nested / transient (within Segment or BossFight) ──
-    ReviveWindow,       // one player down, teammates can revive
-    SegmentRestart,     // all players died — brief pause before retry
-
-    // ── Cinematic (reentrant) ────────────────────────
-    Cinematic,          // chapter intro, boss intro lead-in, villain exit
-
-    // ── Post-run ─────────────────────────────────────
-    RunSummary,         // stats, unlock reveals, meta progression feedback
-
-    // ── Utility / standalone ─────────────────────────
-    LevelEditor,        // same JSON as generator, standalone tool
-    Credits,            // accessible from title or post-run
-    WorkshopBrowser     // post-launch, community levels (deferred)
+// Example — SegmentRestartState auto-transitions after 1.5s:
+public sealed class SegmentRestartState : GameStateNode, IAutoTransition
+{
+    private const float RestartDelay = 1.5f;
+    public float GetDelay(StatePayload? payload) => RestartDelay;
+    public (Type Next, StatePayload? Payload)? SelectNext(GameStateContext ctx)
+    {
+        if (ctx.WipedFromBossFight) { ctx.WipedFromBossFight = false; return (typeof(BossFightState), null); }
+        return (typeof(SegmentState), null);
+    }
 }
 ```
+
+**Canonical state list** (design intent, some future states not yet implemented):
+
+| State class | Purpose |
+|---|---|
+| `TitleState` | Main menu |
+| `LoadoutSelectState` | Character + weapon selection, 1–4 players |
+| `SegmentState` | Active gameplay — enemies, hazards, movement |
+| `SegmentRestartState` | All players down — brief pause before retry |
+| `BossFightState` | Chapter boss encounter |
+| `VillainExitState` | Defeat cinematic + The Laugh beat |
+| `RunSummaryState` | Stats, unlock reveals |
+| `BossIntroState` *(future)* | Villain reveal moment before the fight |
+| `CinematicState` *(future)* | Chapter intro, villain exit cinematic |
+| `GradiusLevelState` *(future)* | Full mode switch — horizontal shooter |
+| `BrawlerLevelState` *(future)* | Full mode switch — top-down beat em up |
+| `AttractState` *(future)* | Auto-demo if title sits idle |
+
+**Note on ReviveWindow:** Revive is handled by `ReviveSystem` (a child Node of `LevelController`) — it is not a separate `GameStateNode`. `LevelController` owns the revive timer, proximity check, and the decision to call `TransitionTo<SegmentRestartState>()` when all players are eliminated. This avoids putting game-world knowledge (player positions, roster) into the state machine context.
 
 ---
 
@@ -67,120 +94,62 @@ public enum GameState
 // Registered as autoload "GameStateManager" in Godot project settings.
 public partial class GameStateManager : Node
 {
-    // Current state. Read-only externally.
-    public GameState Current { get; private set; } = GameState.Title;
+    // Current state. Read-only externally. Check with 'is' patterns, never enum equality.
+    public GameStateNode Current { get; private set; }
 
-    // Mutable context bag passed to state nodes on entry/exit.
-    // Holds routing flags and run-meta stats — not game-world state.
+    // Mutable context bag — routing flags and run-meta stats only. No game-world state here.
     private readonly GameStateContext _ctx = new GameStateContext();
 
-    // Each state is a GameStateNode subclass registered in BuildStates().
-    private readonly Dictionary<GameState, GameStateNode> _states;
-    private GameStateNode _currentNode;
-
-    // Single auto-timer for all IAutoTransition states.
+    // Single auto-timer for all IAutoTransition states — no per-state Timer fields.
     private Timer _autoTimer = null!;
 
-    // Emitted after every transition. long parameters for Godot Variant compatibility.
-    // Cast to GameState at the subscriber: (GameState)from, (GameState)to
-    [Signal] public delegate void StateChangedEventHandler(long from, long to);
+    // Plain C# event — NOT a Godot [Signal]. Passes GameStateNode instances directly.
+    // Subscribers check 'to is BossFightState' etc. — no casting, no magic numbers.
+    public event Action<GameStateNode, GameStateNode>? StateChanged;
 
     // The only way to change state.
-    public void TransitionTo(GameState next, StatePayload? payload = null) { ... }
+    public void TransitionTo<T>(StatePayload? payload = null) where T : GameStateNode, new() { ... }
 
-    // Called by LevelController after a successful revive or timer expiry with survivors.
-    // Routes back to the state that was active before the ReviveWindow.
-    public void ExitReviveWindow() { ... }
+    // Dynamic overload for runtime type dispatch (RunSpine, etc.).
+    public void TransitionTo(Type nextType, StatePayload? payload = null) { ... }
+}
+```
+
+**Subscribing to StateChanged:**
+```csharp
+_gameState.StateChanged += OnStateChanged;
+private void OnStateChanged(GameStateNode from, GameStateNode to)
+{
+    if (to is BossFightState) { ConnectBossHpBar(); }
+    if (to is SegmentState or BossFightState) { Visible = true; }
 }
 ```
 
 ### Transition Rules
 
-`TransitionTo` validates every transition against the legal transition table before executing it. An illegal transition throws a descriptive error in debug builds and logs a warning in release builds — it does not silently succeed.
+`TransitionTo` validates every transition against the legal transition table before executing it. An illegal transition throws in debug builds and logs a warning in release builds.
 
-```csharp
-private static readonly Dictionary<GameState, HashSet<GameState>> LegalTransitions = new()
-{
-    [GameState.Title] = new() {
-        GameState.Attract,
-        GameState.LoadoutSelect,
-        GameState.LevelEditor,
-        GameState.Credits,
-        GameState.WorkshopBrowser
-    },
-    [GameState.Attract] = new() {
-        GameState.Title           // any input returns to Title
-    },
-    [GameState.LoadoutSelect] = new() {
-        GameState.Title,          // back out
-        GameState.Cinematic       // chapter 1 intro fires immediately
-    },
-    [GameState.Cinematic] = new() {
-        GameState.Segment,        // chapter intro → first segment
-        GameState.BossIntro,      // cinematic leading into boss
-        GameState.BossFight,      // boss intro cinematic → fight
-        GameState.VillainExit,    // defeat cinematic fires
-        GameState.RunSummary,     // end-of-run cinematic → summary
-        GameState.Title           // cinematic skipped or abandoned
-    },
-    [GameState.Segment] = new() {
-        GameState.ReviveWindow,   // one player down
-        GameState.SegmentRestart, // all players down
-        GameState.BossIntro,      // spine advances to boss
-        GameState.GradiusLevel,   // spine advances to genre level 1
-        GameState.BrawlerLevel,   // spine advances to genre level 2
-        GameState.Cinematic,      // setpiece triggers a cinematic beat
-        GameState.Segment         // spine advances to next segment (self-transition)
-    },
-    [GameState.ReviveWindow] = new() {
-        GameState.Segment,        // player revived or expired-with-survivors — resume
-        GameState.BossFight,      // player revived or expired-with-survivors during boss fight
-        GameState.SegmentRestart  // timer expired, all players now down
-    },
-    [GameState.SegmentRestart] = new() {
-        GameState.Segment,        // restart animation complete — retry segment
-        GameState.BossFight       // wiped during boss fight — retry boss
-    },
-    [GameState.BossIntro] = new() {
-        GameState.BossFight       // intro complete
-    },
-    [GameState.BossFight] = new() {
-        GameState.ReviveWindow,   // one player down mid-fight
-        GameState.SegmentRestart, // all players down mid-fight
-        GameState.VillainExit     // boss defeated
-    },
-    [GameState.VillainExit] = new() {
-        GameState.Cinematic,      // The Laugh beat fires
-        GameState.GradiusLevel,   // Ch1 boss defeated → commute
-        GameState.BrawlerLevel,   // Ch2 boss defeated → layover
-        GameState.Segment,        // Ch3 boss defeated → final boss approach
-        GameState.RunSummary      // final boss defeated → run ends
-    },
-    [GameState.GradiusLevel] = new() {
-        GameState.Cinematic,      // genre level complete → chapter intro
-        GameState.RunSummary      // player abandoned run
-    },
-    [GameState.BrawlerLevel] = new() {
-        GameState.Cinematic,      // genre level complete → chapter intro
-        GameState.RunSummary      // player abandoned run
-    },
-    [GameState.RunSummary] = new() {
-        GameState.Title,          // return to menu
-        GameState.LoadoutSelect,  // run again immediately
-        GameState.Credits         // accessible from summary screen
-    },
-    [GameState.LevelEditor] = new() {
-        GameState.Title           // only exit is back to title
-    },
-    [GameState.Credits] = new() {
-        GameState.Title,
-        GameState.RunSummary      // back to summary if arrived from there
-    },
-    [GameState.WorkshopBrowser] = new() {
-        GameState.Title
-    }
-};
-```
+**Implemented legal transitions** (current state of the game — expand as new states are added):
+
+| From | To |
+|---|---|
+| `TitleState` | `LoadoutSelectState` |
+| `LoadoutSelectState` | `TitleState`, `SegmentState` |
+| `SegmentState` | `SegmentRestartState`, `BossFightState`, `RunSummaryState`, `SegmentState` |
+| `SegmentRestartState` | `SegmentState`, `BossFightState` |
+| `BossFightState` | `SegmentRestartState`, `VillainExitState` |
+| `VillainExitState` | `RunSummaryState` |
+| `RunSummaryState` | `TitleState`, `LoadoutSelectState` |
+
+**Future transitions** (design intent, states not yet implemented):
+
+| From | To |
+|---|---|
+| `LoadoutSelectState` | `CinematicState` (chapter 1 intro) |
+| `SegmentState` | `BossIntroState`, `GradiusLevelState`, `BrawlerLevelState`, `CinematicState` |
+| `BossFightState` | `ReviveWindow`* (handled by `ReviveSystem`/`LevelController`, not a state) |
+| `VillainExitState` | `CinematicState`, `GradiusLevelState`, `BrawlerLevelState` |
+| `RunSummaryState` | `CreditsState` |
 
 ---
 
@@ -501,7 +470,7 @@ The bible is explicit: death is not instant failure. This is the complete rulese
 - If countdown expires with survivors: downed player is eliminated from the run; `ExitReviveWindow()` continues with remaining players
 - If countdown expires with no survivors: `TransitionTo(SegmentRestart)`
 
-**Implementation note:** The revive timer lives in `LevelController` (via `PlayerRoster`), not in the state machine. `ReviveWindowState.OnEnter` saves `StateBeforeRevive` so `ExitReviveWindow()` knows where to return. `LevelController` calls `ExitReviveWindow()` on success or on expiry-with-survivors; it calls `TransitionTo(SegmentRestart)` on expiry-with-no-survivors.
+**Implementation note:** Revive is handled entirely by `ReviveSystem` — a child `Node` of `LevelController` — not by a separate `GameStateNode`. `ReviveSystem` owns the countdown timer and proximity check. On expiry with no survivors it calls `_gameState.TransitionTo<SegmentRestartState>()`. On successful revive or expiry-with-survivors, `LevelController` calls `_roster.MarkRevived()` or `_roster.EliminateDownedPlayers()` and continues the level. There is no `ReviveWindowState`, no `ExitReviveWindow()` method, and no `StateBeforeRevive` in `GameStateContext`. This keeps game-world knowledge (who is alive, who is near whom) out of the state machine entirely.
 
 **All players down simultaneously:**
 - `TransitionTo(SegmentRestart)` directly — no ReviveWindow
@@ -520,23 +489,43 @@ The bible is explicit: death is not instant failure. This is the complete rulese
 
 ---
 
-## What the Signal Bus Carries
+## How State Transitions Are Triggered
 
-The engine fires signals. Feral Frenzy listens to them. The `GameStateManager` is one of the listeners.
+Transitions are always called via `_gameState.TransitionTo<T>()`. The initiating node calls the manager directly — there is no string-based signal bus for state transitions.
+
+**Implemented signal → transition wiring (current):**
 
 ```csharp
-// Engine signals that trigger state transitions (examples):
-// "segment_exit_reached"     → Segment calls RunSpine.Advance()
-// "player_died"              → Segment checks death state, may TransitionTo(ReviveWindow)
-// "all_players_died"         → Segment or BossFight calls TransitionTo(SegmentRestart)
-// "boss_defeated"            → BossFight calls TransitionTo(VillainExit)
-// "genre_level_completed"    → GradiusLevel/BrawlerLevel calls TransitionTo(Cinematic)
-// "cinematic_completed"      → Cinematic calls TransitionTo(ReturnState, ReturnPayload)
-// "revive_timer_expired"     → ReviveWindow calls TransitionTo(SegmentRestart)
-// "player_revived"           → ReviveWindow calls TransitionTo(Segment)
+// PlayerController emits [Signal] WentDown — LevelController subscribes and decides:
+player.WentDown += () => OnPlayerWentDown(player);
+
+private void OnPlayerWentDown(PlayerController player)
+{
+    _gameState.NotifyPlayerDeath();
+    PlayerRoster.DownResult result = _roster.MarkDown();
+    if (result == PlayerRoster.DownResult.AllDown)
+        _gameState.TransitionTo<SegmentRestartState>();
+    else
+        _reviveSystem.StartWindow(player, _players);  // ReviveSystem handles timer + proximity
+}
+
+// ReviveSystem (child of LevelController) emits C# events:
+_reviveSystem.WindowExpired += OnReviveWindowExpired;
+private void OnReviveWindowExpired()
+{
+    _roster.EliminateDownedPlayers();
+    if (_roster.AliveCount == 0)
+        _gameState.TransitionTo<SegmentRestartState>();
+}
+
+// ExitTrigger calls the manager directly:
+_gameState.TransitionTo<RunSummaryState>();
+
+// EnemyHost TriggerDeath calls NotifyEnemyKilled — boss death is handled by BossDeath behavior:
+// BossDeath.Execute → GetTree().CreateTimer(1s) → gsm.TransitionTo<VillainExitState>()
 ```
 
-The engine fires these signals without knowing who is listening. The state-specific controllers register listeners on entry and deregister on exit. This is the Godot signal system used as the seam between engine and content layers.
+**Design principle:** The engine fires C# events and Godot signals. Scene systems (`LevelController`, `ReviveSystem`, behavior nodes) subscribe to those events and decide when to call `TransitionTo`. The state machine does not know what caused the transition — only that it is legal.
 
 ---
 

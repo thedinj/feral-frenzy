@@ -70,5 +70,23 @@ public partial class AssetRegistry : Node
         }
 
         GD.Print($"AssetRegistry: loaded {_manifest.Count} asset entries.");
+        ValidateScenes();
+    }
+
+    private void ValidateScenes()
+    {
+        foreach (KeyValuePair<string, string> entry in _manifest)
+        {
+            if (!entry.Key.StartsWith("scene_", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (GD.Load<PackedScene>(entry.Value) is null)
+            {
+                throw new InvalidOperationException(
+                    $"AssetRegistry: scene '{entry.Key}' at path '{entry.Value}' failed to load. Fix the manifest before running.");
+            }
+        }
     }
 }

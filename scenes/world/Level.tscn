@@ -2,7 +2,8 @@
 
 [ext_resource type="Script" uid="uid://ru17pl77khd2" path="res://src/godot/world/LevelController.cs" id="1_level_ctrl"]
 [ext_resource type="Script" uid="uid://bdrlbe5jj7tss" path="res://src/godot/camera/CoopCamera.cs" id="2_camera"]
-[ext_resource type="Script" path="res://src/godot/world/BossRoomTrigger.cs" id="3_boss_trigger"]
+[ext_resource type="Resource" uid="uid://wu6jaoj8dlnu" path="res://data/levels/CretaceousLevel_config.tres" id="2_hj186"]
+[ext_resource type="Script" uid="uid://bd36yw3201v6d" path="res://src/godot/world/BossRoomTrigger.cs" id="3_boss_trigger"]
 [ext_resource type="PackedScene" path="res://scenes/weapons/SpinningBladePickup.tscn" id="4_weapon_pickup"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/GroundPatroller.tscn" id="5_ground_patroller"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/AerialDiver.tscn" id="6_aerial_diver"]
@@ -38,6 +39,7 @@ size = Vector2(20, 160)
 
 [node name="Level" type="Node2D" unique_id=1241502235]
 script = ExtResource("1_level_ctrl")
+Config = ExtResource("2_hj186")
 
 [node name="CoopCamera" type="Camera2D" parent="." unique_id=1287406537]
 script = ExtResource("2_camera")
@@ -111,18 +113,34 @@ position = Vector2(220, 120)
 
 [node name="GroundPatroller1" parent="." unique_id=138419926 instance=ExtResource("5_ground_patroller")]
 position = Vector2(350, 155)
+_patrolSpeed = null
+_fireRange = null
+_fireRate = null
 
 [node name="GroundPatroller2" parent="." unique_id=1650715064 instance=ExtResource("5_ground_patroller")]
 position = Vector2(560, 155)
+_patrolSpeed = null
+_fireRange = null
+_fireRate = null
 
 [node name="AerialDiver1" parent="." unique_id=800920793 instance=ExtResource("6_aerial_diver")]
 position = Vector2(480, 75)
+_patrolSpeed = null
+_diveSpeed = null
+_patrolHeight = null
 
 [node name="MountedDino1" parent="." unique_id=1346983700 instance=ExtResource("7_mounted_dino")]
 position = Vector2(680, 155)
+_riderMaxHp = null
+_dinoMaxHp = null
+_chargeSpeed = null
+_shootRange = null
+_fireRate = null
 
 [node name="PteroBomber1" parent="." unique_id=1346983701 instance=ExtResource("8_ptero_bomber")]
 position = Vector2(400, 40)
+_patrolSpeed = null
+_dropCooldown = null
 
 [node name="RapidFirePickup" parent="." unique_id=1346983710 instance=ExtResource("9_powerup")]
 position = Vector2(120, 150)

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace FeralFrenzy.Godot.Enemies;
+namespace FeralFrenzy.Godot.Enemies.Behaviors;
 
 public sealed class PatternCycle<T>
 {

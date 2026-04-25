@@ -1,8 +1,14 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=10 format=3]
 
-[ext_resource type="Script" path="res://src/godot/enemies/GroundPatroller.cs" id="1_gp_ctrl"]
-[ext_resource type="Resource" path="res://data/enemies/GroundPatroller_enemy.tres" id="2_gp_def"]
+[ext_resource type="Script" path="res://src/godot/enemies/EnemyHost.cs" id="1_host"]
+[ext_resource type="Resource" path="res://data/enemies/GroundPatroller_enemy.tres" id="2_def"]
 [ext_resource type="SpriteFrames" path="res://data/placeholder_frames.tres" id="3_frames"]
+[ext_resource type="Script" path="res://src/godot/enemies/components/HitStunComponent.cs" id="4_hitstun"]
+[ext_resource type="Script" path="res://src/godot/enemies/behaviors/DownwardGravity.cs" id="5_gravity"]
+[ext_resource type="Script" path="res://src/godot/enemies/behaviors/FireAtPlayerBehavior.cs" id="6_fire"]
+[ext_resource type="Script" path="res://src/godot/enemies/behaviors/PatrolBehavior.cs" id="7_patrol"]
+[ext_resource type="Script" path="res://src/godot/enemies/behaviors/DefaultDeath.cs" id="8_death"]
+[ext_resource type="Script" path="res://src/godot/enemies/components/EnemyVisuals.cs" id="9_visuals"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_gp"]
 size = Vector2(14, 18)
@@ -10,8 +16,8 @@ size = Vector2(14, 18)
 [node name="GroundPatroller" type="CharacterBody2D"]
 collision_layer = 4
 collision_mask = 1
-script = ExtResource("1_gp_ctrl")
-Definition = ExtResource("2_gp_def")
+script = ExtResource("1_host")
+Definition = ExtResource("2_def")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_gp")
@@ -20,3 +26,26 @@ shape = SubResource("RectangleShape2D_gp")
 scale = Vector2(0.14, 0.14)
 sprite_frames = ExtResource("3_frames")
 animation = &"idle"
+
+[node name="HitStun" type="Node" parent="."]
+script = ExtResource("4_hitstun")
+
+[node name="Gravity" type="Node" parent="."]
+script = ExtResource("5_gravity")
+
+[node name="Behavior" type="Node" parent="."]
+script = ExtResource("6_fire")
+FireRange = 140.0
+FireRate = 1.8
+ProjectileSpeed = 180.0
+ProjectileImpact = 1.0
+
+[node name="Patrol" type="Node" parent="Behavior"]
+script = ExtResource("7_patrol")
+Speed = 40.0
+
+[node name="Death" type="Node" parent="."]
+script = ExtResource("8_death")
+
+[node name="Visuals" type="Node" parent="."]
+script = ExtResource("9_visuals")

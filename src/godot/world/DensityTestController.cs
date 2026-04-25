@@ -54,7 +54,7 @@ public partial class DensityTestController : Node2D
 
         for (int i = 0; i < count; i++)
         {
-            EnemyController enemy = scene.Instantiate<EnemyController>();
+            EnemyHost enemy = scene.Instantiate<EnemyHost>();
             enemy.GlobalPosition = new Vector2(spacing * (i + 1), yOffset);
             spawnParent.AddChild(enemy);
         }

@@ -1,8 +1,13 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=9 format=3]
 
-[ext_resource type="Script" path="res://src/godot/enemies/PteroBomber.cs" id="1_pb_ctrl"]
-[ext_resource type="Resource" path="res://data/enemies/PteroBomber_enemy.tres" id="2_pb_def"]
+[ext_resource type="Script" path="res://src/godot/enemies/EnemyHost.cs" id="1_host"]
+[ext_resource type="Resource" path="res://data/enemies/PteroBomber_enemy.tres" id="2_def"]
 [ext_resource type="SpriteFrames" path="res://data/placeholder_frames.tres" id="3_frames"]
+[ext_resource type="Script" path="res://src/godot/enemies/components/HitStunComponent.cs" id="4_hitstun"]
+[ext_resource type="Script" path="res://src/godot/enemies/behaviors/NullGravity.cs" id="5_gravity"]
+[ext_resource type="Script" path="res://src/godot/enemies/behaviors/BombDropBehavior.cs" id="6_behavior"]
+[ext_resource type="Script" path="res://src/godot/enemies/behaviors/DefaultDeath.cs" id="7_death"]
+[ext_resource type="Script" path="res://src/godot/enemies/components/EnemyVisuals.cs" id="8_visuals"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_pb"]
 size = Vector2(16, 12)
@@ -10,8 +15,8 @@ size = Vector2(16, 12)
 [node name="PteroBomber" type="CharacterBody2D"]
 collision_layer = 4
 collision_mask = 1
-script = ExtResource("1_pb_ctrl")
-Definition = ExtResource("2_pb_def")
+script = ExtResource("1_host")
+Definition = ExtResource("2_def")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_pb")
@@ -20,3 +25,20 @@ shape = SubResource("RectangleShape2D_pb")
 scale = Vector2(0.14, 0.14)
 sprite_frames = ExtResource("3_frames")
 animation = &"idle"
+
+[node name="HitStun" type="Node" parent="."]
+script = ExtResource("4_hitstun")
+
+[node name="Gravity" type="Node" parent="."]
+script = ExtResource("5_gravity")
+
+[node name="Behavior" type="Node" parent="."]
+script = ExtResource("6_behavior")
+PatrolSpeed = 60.0
+DropCooldown = 3.0
+
+[node name="Death" type="Node" parent="."]
+script = ExtResource("7_death")
+
+[node name="Visuals" type="Node" parent="."]
+script = ExtResource("8_visuals")

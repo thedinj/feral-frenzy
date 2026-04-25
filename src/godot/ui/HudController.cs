@@ -15,7 +15,7 @@ public partial class HudController : Control
     private Label? _killLabel;
     private Label? _reviveLabel;
     private ProgressBar? _bossHpBar;
-    private EnemyController? _connectedBoss;
+    private EnemyHost? _connectedBoss;
 
     public override void _Ready()
     {
@@ -102,7 +102,7 @@ public partial class HudController : Control
     {
         DisconnectBossHpBar();
 
-        EnemyController? boss = LevelController.Instance?.ActiveBoss;
+        EnemyHost? boss = LevelController.Instance?.ActiveBoss;
         if (boss is null || _bossHpBar is null)
         {
             return;

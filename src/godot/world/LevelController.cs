@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
 using FeralFrenzy.Core.Data.Content;
 using FeralFrenzy.Core.Data.Engine;
@@ -17,40 +16,38 @@ namespace FeralFrenzy.Godot.World;
 public partial class LevelController : Node2D
 {
     private const string ChapterJsonPath = "res://data/chapters/chapter_cretaceous.json";
-    private const float ReviveProximity = 32f;
-    private const float ReviveHoldDuration = 2f;
-    private const float ReviveWindowSeconds = 10f;
-    private const float BossSpawnX = 160f;
-    private const float BossSpawnY = 155f;
 
-    // Global access for WeaponController and enemy projectile spawning
+    // Global access for HudController (read-only display state) and BossRoomTrigger (entity addition).
     public static LevelController? Instance { get; private set; }
+
+    [Export]
+    public LevelConfig? Config { get; set; }
 
     // Set when a boss is added to the level; cleared when entities are wiped.
     // HudController reads this directly instead of searching the "bosses" group.
-    public EnemyController? ActiveBoss { get; private set; }
+    public EnemyHost? ActiveBoss { get; private set; }
 
-    public bool IsReviveActive => _downPlayer is not null && _reviveWindowTimer.TimeLeft > 0;
+    public bool IsReviveActive => _reviveSystem.IsActive;
 
-    public float ReviveSecondsRemaining => (float)_reviveWindowTimer.TimeLeft;
+    public float ReviveSecondsRemaining => _reviveSystem.SecondsRemaining;
+
+    public float EffectiveGravity => PhysicsConstants.Gravity * (Config?.GravityScale ?? 1.0f);
 
     private readonly List<PlayerController> _players = new List<PlayerController>();
     private readonly PlayerRoster _roster = new PlayerRoster();
 
     // Resolved in _Ready via GetNode — node-type exports are not reliable in hand-written .tscn files
-    private Node2D _entities = null!;
-    private Node2D _playerSpawns = null!;
+    private Node2D _entities = null!; // assigned in _Ready()
+    private Node2D _playerSpawns = null!; // assigned in _Ready()
     private CoopCamera? _camera;
 
-    private GameStateManager _gameState = null!;
-    private AssetRegistry _registry = null!;
-    private EntityPool _entityPool = null!;
+    private GameStateManager _gameState = null!; // assigned in _Ready()
+    private AssetRegistry _registry = null!; // assigned in _Ready()
+    private EntityPool _entityPool = null!; // assigned in _Ready()
+    private ReviveSystem _reviveSystem = null!; // assigned in _Ready()
 
-    // Initialized in _Ready — Godot does not call _Ready during construction
-    private Timer _reviveWindowTimer = null!;
-
-    private PlayerController? _downPlayer;
-    private float _reviveHoldTimer;
+    private float _savedGravity;
+    private bool _gravityOverrideApplied;
     private bool _levelActive;
 
     public override void _Ready()
@@ -63,10 +60,11 @@ public partial class LevelController : Node2D
         _registry = GetNode<AssetRegistry>(AutoloadPaths.AssetRegistry);
         _entityPool = GetNode<EntityPool>(AutoloadPaths.EntityPool);
 
-        _reviveWindowTimer = new Timer();
-        _reviveWindowTimer.OneShot = true;
-        _reviveWindowTimer.Timeout += OnReviveWindowTimerExpired;
-        AddChild(_reviveWindowTimer);
+        _reviveSystem = new ReviveSystem();
+        AddChild(_reviveSystem);
+        _reviveSystem.Configure(Config);
+        _reviveSystem.ReviveCompleted += OnReviveCompleted;
+        _reviveSystem.WindowExpired += OnReviveWindowExpired;
 
         Instance = this;
 
@@ -84,6 +82,7 @@ public partial class LevelController : Node2D
     public override void _ExitTree()
     {
         _gameState.StateChanged -= OnStateChanged;
+        RestoreGravity();
         if (Instance == this)
         {
             Instance = null;
@@ -92,44 +91,26 @@ public partial class LevelController : Node2D
 
     public override void _Process(double delta)
     {
-        if (!_levelActive)
-        {
-            return;
-        }
-
-        if (_downPlayer is not null)
-        {
-            CheckReviveProximity((float)delta);
-        }
+        _ = delta;
     }
 
+    // Called by BossRoomTrigger for normal boss entry flow.
     public void AddToEntities(Node entity)
     {
         _entities.AddChild(entity);
-        if (entity is EnemyController enemy && enemy.IsInGroup("bosses"))
+        if (entity is EnemyHost enemy)
         {
-            ActiveBoss = enemy;
+            if (enemy.IsInGroup("bosses"))
+            {
+                ActiveBoss = enemy;
+            }
+
+            enemy.ProjectileSpawnRequested += OnEntityProjectileSpawnRequested;
+            enemy.MinionSummonRequested += OnMinionSummonRequested;
         }
     }
 
     public IReadOnlyList<PlayerController> GetPlayers() => _players;
-
-    public void HandlePlayerDown(PlayerController player)
-    {
-        _gameState.NotifyPlayerDeath();
-        PlayerRoster.DownResult result = _roster.MarkDown();
-
-        if (result == PlayerRoster.DownResult.AllDown)
-        {
-            _gameState.TransitionTo<SegmentRestartState>();
-        }
-        else
-        {
-            _downPlayer = _players.FirstOrDefault(p => p.IsDown);
-            _reviveHoldTimer = 0f;
-            _reviveWindowTimer.Start(ReviveWindowSeconds);
-        }
-    }
 
     private void OnStateChanged(GameStateNode from, GameStateNode to)
     {
@@ -148,8 +129,7 @@ public partial class LevelController : Node2D
 
             case SegmentRestartState:
                 _levelActive = false;
-                _reviveWindowTimer.Stop();
-                _downPlayer = null;
+                _reviveSystem.Cancel();
                 break;
 
             case RunSummaryState:
@@ -162,6 +142,8 @@ public partial class LevelController : Node2D
 
     private void ActivateLevel(bool isRestart)
     {
+        ApplyGravityOverride();
+
         if (isRestart)
         {
             ClearDynamicEntities();
@@ -180,12 +162,74 @@ public partial class LevelController : Node2D
     private void DeactivateLevel()
     {
         _levelActive = false;
-        _reviveWindowTimer.Stop();
-        _downPlayer = null;
+        _reviveSystem.Cancel();
+        RestoreGravity();
         ClearAllEntities();
         _players.Clear();
         _roster.Reset(0);
         _camera?.ClearPlayers();
+    }
+
+    private void OnPlayerWentDown(PlayerController player)
+    {
+        _gameState.NotifyPlayerDeath();
+        PlayerRoster.DownResult result = _roster.MarkDown();
+
+        if (result == PlayerRoster.DownResult.AllDown)
+        {
+            _gameState.TransitionTo<SegmentRestartState>();
+        }
+        else
+        {
+            _reviveSystem.StartWindow(player, _players);
+        }
+    }
+
+    private void OnReviveCompleted(PlayerController revived)
+    {
+        revived.Revive();
+        _roster.MarkRevived();
+    }
+
+    private void OnReviveWindowExpired()
+    {
+        _roster.EliminateDownedPlayers();
+        if (_roster.AliveCount == 0)
+        {
+            _gameState.TransitionTo<SegmentRestartState>();
+        }
+    }
+
+    private void OnEntityProjectileSpawned(Node2D projectile)
+    {
+        _entities.AddChild(projectile);
+    }
+
+    private void OnEntityProjectileSpawnRequested(Vector2 dir, float speed, float impact)
+    {
+        PackedScene? scene = _registry.GetScene(AssetKeys.SceneProjectile);
+        if (scene is null)
+        {
+            return;
+        }
+
+        ProjectileController projectile = scene.Instantiate<ProjectileController>();
+        projectile.Initialize(dir, speed, impact, ProjectileOwner.Enemy);
+        _entities.AddChild(projectile);
+    }
+
+    private void OnMinionSummonRequested(string assetKey, Vector2 offset1, Vector2 offset2)
+    {
+        foreach (Vector2 offset in new[] { offset1, offset2 })
+        {
+            EnemyHost minion = _entityPool.Get<EnemyHost>(assetKey);
+            if (ActiveBoss is not null)
+            {
+                minion.GlobalPosition = ActiveBoss.GlobalPosition + offset;
+            }
+
+            AddToEntities(minion);
+        }
     }
 
     private void SpawnPlayers()
@@ -202,6 +246,8 @@ public partial class LevelController : Node2D
             {
                 continue;
             }
+
+            player.WentDown += () => OnPlayerWentDown(player);
 
             if (spawnPoints[i] is Node2D spawnNode)
             {
@@ -235,81 +281,6 @@ public partial class LevelController : Node2D
         }
 
         _roster.Reset(_players.Count);
-        _downPlayer = null;
-        _reviveHoldTimer = 0f;
-    }
-
-    private void OnReviveWindowTimerExpired()
-    {
-        _roster.EliminateDownedPlayers();
-        _downPlayer = null;
-        _reviveHoldTimer = 0f;
-
-        if (_roster.AliveCount == 0)
-        {
-            _gameState.TransitionTo<SegmentRestartState>();
-        }
-    }
-
-    private void CheckReviveProximity(float delta)
-    {
-        if (_downPlayer is null)
-        {
-            return;
-        }
-
-        PlayerController? reviver = _players.FirstOrDefault(p =>
-            !p.IsDown && !p.IsDead &&
-            p.GlobalPosition.DistanceTo(_downPlayer.GlobalPosition) <= ReviveProximity);
-
-        if (reviver is not null
-            && reviver.GetNode<InputManager>(AutoloadPaths.InputManager)
-                .IsActionPressed(reviver.PlayerIndex, InputActions.PrimaryAttack))
-        {
-            _reviveHoldTimer += delta;
-            if (_reviveHoldTimer >= ReviveHoldDuration)
-            {
-                _downPlayer.Revive();
-                _reviveWindowTimer.Stop();
-                _roster.MarkRevived();
-                _downPlayer = null;
-                _reviveHoldTimer = 0f;
-            }
-        }
-        else
-        {
-            _reviveHoldTimer = 0f;
-        }
-    }
-
-    private void EquipDefaultWeapon(PlayerController player)
-    {
-        FFWeaponDefinition? def = _registry.Load<FFWeaponDefinition>(AssetKeys.WeaponDefDefaultBlaster);
-        if (def is null)
-        {
-            GD.PushWarning("LevelController: DefaultBlaster definition not found — player spawns unarmed.");
-            return;
-        }
-
-        player.EquipWeapon(new WeaponController { Definition = def });
-    }
-
-    private PlayerController? SpawnPlayer(int playerIndex)
-    {
-        string sceneKey = playerIndex == 0
-            ? AssetKeys.SceneCharBear
-            : AssetKeys.SceneCharHoneyBadger;
-
-        PackedScene? scene = _registry.GetScene(sceneKey);
-        if (scene is null)
-        {
-            GD.PushWarning($"LevelController: could not load player scene for index {playerIndex}.");
-            return null;
-        }
-
-        PlayerController player = scene.Instantiate<PlayerController>();
-        player.PlayerIndex = playerIndex;
-        return player;
     }
 
     private void ClearDynamicEntities()
@@ -342,10 +313,13 @@ public partial class LevelController : Node2D
             return;
         }
 
-        Node2D bossNode = scene.Instantiate<Node2D>();
-        bossNode.GlobalPosition = new Vector2(BossSpawnX, BossSpawnY);
+        Vector2 spawnPos = Config?.BossSpawnPosition ?? new Vector2(160f, 155f);
+        EnemyHost bossNode = scene.Instantiate<EnemyHost>();
+        bossNode.GlobalPosition = spawnPos;
         _entities.AddChild(bossNode);
-        ActiveBoss = bossNode as EnemyController;
+        ActiveBoss = bossNode;
+        ActiveBoss.ProjectileSpawnRequested += OnEntityProjectileSpawnRequested;
+        ActiveBoss.MinionSummonRequested += OnMinionSummonRequested;
     }
 
     private void SpawnScaledEnemies()
@@ -359,10 +333,43 @@ public partial class LevelController : Node2D
         PackedScene? patrollerScene = _registry.GetScene(AssetKeys.SceneEnemyGroundPatroller);
         if (patrollerScene is not null)
         {
-            var extra = patrollerScene.Instantiate<Node2D>();
-            extra.GlobalPosition = new Vector2(460f, 155f);
+            var extra = patrollerScene.Instantiate<EnemyHost>();
+            extra.GlobalPosition = Config?.ExtraPatrollerSpawnPosition ?? new Vector2(460f, 155f);
             _entities.AddChild(extra);
+            extra.ProjectileSpawnRequested += OnEntityProjectileSpawnRequested;
         }
+    }
+
+    private void EquipDefaultWeapon(PlayerController player)
+    {
+        FFWeaponDefinition? def = _registry.Load<FFWeaponDefinition>(AssetKeys.WeaponDefDefaultBlaster);
+        if (def is null)
+        {
+            GD.PushWarning("LevelController: DefaultBlaster definition not found — player spawns unarmed.");
+            return;
+        }
+
+        var weapon = new WeaponController { Definition = def };
+        weapon.ProjectileSpawned += OnEntityProjectileSpawned;
+        player.EquipWeapon(weapon);
+    }
+
+    private PlayerController? SpawnPlayer(int playerIndex)
+    {
+        string sceneKey = playerIndex == 0
+            ? AssetKeys.SceneCharBear
+            : AssetKeys.SceneCharHoneyBadger;
+
+        PackedScene? scene = _registry.GetScene(sceneKey);
+        if (scene is null)
+        {
+            GD.PushWarning($"LevelController: could not load player scene for index {playerIndex}.");
+            return null;
+        }
+
+        PlayerController player = scene.Instantiate<PlayerController>();
+        player.PlayerIndex = playerIndex;
+        return player;
     }
 
     private void TryBuildParallax()
@@ -393,11 +400,43 @@ public partial class LevelController : Node2D
 
     private void PreWarmPool()
     {
-        _entityPool.PreWarm(AssetKeys.SceneEnemyGroundPatroller, 8);
-        _entityPool.PreWarm(AssetKeys.SceneEnemyAerialDiver, 4);
-        _entityPool.PreWarm(AssetKeys.SceneEnemyMountedDino, 2);
-        _entityPool.PreWarm(AssetKeys.SceneEnemyPteroBomber, 2);
-        _entityPool.PreWarm(AssetKeys.SceneProjectile, 20);
-        _entityPool.PreWarm(AssetKeys.SceneSpinningBladeProjectile, 4);
+        _entityPool.PreWarm(AssetKeys.SceneEnemyGroundPatroller, Config?.PoolWarmGroundPatroller ?? 8);
+        _entityPool.PreWarm(AssetKeys.SceneEnemyAerialDiver, Config?.PoolWarmAerialDiver ?? 4);
+        _entityPool.PreWarm(AssetKeys.SceneEnemyMountedDino, Config?.PoolWarmMountedDino ?? 2);
+        _entityPool.PreWarm(AssetKeys.SceneEnemyPteroBomber, Config?.PoolWarmPteroBomber ?? 2);
+        _entityPool.PreWarm(AssetKeys.SceneProjectile, Config?.PoolWarmProjectile ?? 20);
+        _entityPool.PreWarm(AssetKeys.SceneSpinningBladeProjectile, Config?.PoolWarmSpinningBlade ?? 4);
+    }
+
+    private void ApplyGravityOverride()
+    {
+        float scale = Config?.GravityScale ?? 1.0f;
+        if (Mathf.IsEqualApprox(scale, 1.0f))
+        {
+            return;
+        }
+
+        // Override the physics world's default gravity so Area2D and RigidBody2D nodes
+        // are also affected, in addition to the manual gravity in character physics processes.
+        _savedGravity = ProjectSettings.GetSetting("physics/2d/default_gravity").AsSingle();
+        PhysicsServer2D.AreaSetParam(
+            GetWorld2D().Space,
+            PhysicsServer2D.AreaParameter.Gravity,
+            _savedGravity * scale);
+        _gravityOverrideApplied = true;
+    }
+
+    private void RestoreGravity()
+    {
+        if (!_gravityOverrideApplied)
+        {
+            return;
+        }
+
+        PhysicsServer2D.AreaSetParam(
+            GetWorld2D().Space,
+            PhysicsServer2D.AreaParameter.Gravity,
+            _savedGravity);
+        _gravityOverrideApplied = false;
     }
 }

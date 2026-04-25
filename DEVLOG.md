@@ -1,5 +1,55 @@
 # Feral Frenzy — Dev Log
 
+## 2026-04-25 — Enemy component architecture: EnemyHost + behavior/component nodes
+
+**Phase:** 2 (post-completion cleanup)
+**Built:**
+- **`EnemyHost`** (`src/godot/enemies/EnemyHost.cs`): Replaces `EnemyController`. Minimal host — owns Definition, CurrentHp, IsDead, TakeDamage, FindNearestPlayer, signal emission. Zero virtual methods. Delegates physics, AI, gravity, damage interception, and death sequencing to child nodes.
+- **Four behavior interfaces:** `ITickBehavior`, `IGravityBehavior`, `IDeathBehavior`, `IDamageBehavior` in `src/godot/enemies/behaviors/`. `EnemyHost._PhysicsProcess` is sealed and drives all four.
+- **Components:** `HitStunComponent` (timer + active flag, no signals), `EnemyVisuals` (subscribes to `HpChanged`, drives hit flash). Both in `src/godot/enemies/components/`.
+- **Gravity behaviors:** `DownwardGravity` (reads `LevelController.EffectiveGravity`), `NullGravity` (no-op for aerial enemies).
+- **Death behaviors:** `DefaultDeath` (plays death animation + `AnimationFinished → QueueFree`, or fades out with tween), `BossDeath` (1s pause then `TransitionTo<VillainExitState>`).
+- **AI behaviors:** `PatrolBehavior`, `FireAtPlayerBehavior` (child `Patrol` fallback), `DiveBehavior` (Patrol/Dive/Return state machine, exports replace hardcoded consts), `BombDropBehavior` (boundary/cooldown exports), `MountedDinoBehavior` (implements both `ITickBehavior` and `IDamageBehavior` — rider phase absorbs damage to its own HP pool; `host.CurrentHp` reassigned to dino HP on rider death).
+- **Boss behaviors:** `PatternCycleBehavior` (wraps `PatternCycle<BossPattern>`, resolves `ChargeBehavior`/`BurstFireBehavior`/`SummonBehavior` children in `_Ready`), `ChargeBehavior` (completion callback), `BurstFireBehavior`, `SummonBehavior` (calls `host.RequestMinions` → signal up).
+- **`PatternCycle<T>`** moved from `src/godot/enemies/` to `src/godot/enemies/behaviors/`, namespace updated.
+- **LevelController updated:** `ActiveBoss` typed as `EnemyHost?`. `AddToEntities` subscribes to `ProjectileSpawnRequested` and `MinionSummonRequested` signals. New `OnEntityProjectileSpawnRequested(Vector2, float, float)` builds and spawns projectiles. New `OnMinionSummonRequested` uses `EntityPool.Get<EnemyHost>` and `AddToEntities`.
+- **All callers updated:** `ProjectileController`, `SpinningBladeProjectile`, `HudController`, `DensityTestController` — all `EnemyController` type checks/casts replaced with `EnemyHost`.
+- **All five enemy `.tscn` files rewritten** with new component hierarchy (HitStun/Gravity/Behavior/Death/Visuals child nodes).
+- **Deleted:** `EnemyController.cs`, `GroundPatroller.cs`, `AerialDiver.cs`, `MountedDino.cs`, `PteroBomber.cs`, `PlaceholderBoss.cs`.
+- **`NodePaths.cs`:** Added 5 EnemyHost slot constants (`EnemyBehavior`, `EnemyGravity`, `EnemyHitStun`, `EnemyDeath`, `EnemyVisuals`).
+
+**Decisions:**
+- `PlayerController` left unchanged. One variant for all characters (data-driven), behaviors tightly interdependent, `StatusEffectController` already handles extensibility.
+- `EnemyVisuals` handles only hit flash (HpChanged signal). Death animation + QueueFree is entirely `DefaultDeath`'s responsibility — no dual subscription conflict.
+- `MountedDinoBehavior` gets `HitStunComponent` reference via `GetNodeOrNull<HitStunComponent>("../HitStun")` for rider-phase stun activation, since it cannot call `host.TakeDamage` (that would recurse through the `IDamageBehavior` hook).
+- `PatternCycleBehavior._isAttacking` prevents re-entry into charge while in progress; charge completes via `Action onComplete` callback in `ChargeBehavior.BeginCharge`.
+- `BombDropBehavior` initializes its drop timer on first `Tick` rather than `_Ready` — components don't have reliable `_Ready` sequencing relative to host initialization.
+
+**Deferred:** Nothing new.
+**Next:** Assign `CretaceousLevel_config.tres` in Godot editor. Begin Phase 3 generator work.
+**Tests added:** None — Godot-layer changes, integration-tested by running the game.
+
+---
+
+## 2026-04-25 — Architecture improvements: tuning to Resources, signal inversion, ReviveSystem, AssetRegistry hardening
+
+**Phase:** 2 (post-completion cleanup)
+**Built:**
+- **`LevelConfig` Resource** (`src/godot/world/LevelConfig.cs`): New `[GlobalClass]` Godot Resource holding all level-specific tuning — `GravityScale`, revive window/hold/proximity durations, boss spawn position, 2-player extra spawn position, entity pool warm counts. Assigned via `[Export]` on `LevelController`. Defaults match the previous hardcoded values so no gameplay change.
+- **Gravity override at level level:** `LevelController.EffectiveGravity` property returns `PhysicsConstants.Gravity * Config.GravityScale`. `PlayerController.ApplyGravity()` and `EnemyController._PhysicsProcess()` now read `LevelController.Instance?.EffectiveGravity ?? PhysicsConstants.Gravity`. `LevelController` also applies the scale to the physics world's `AreaParameter.Gravity` for Area2D/RigidBody2D nodes, restoring it on deactivation.
+- **`ReviveSystem` node** (`src/godot/world/ReviveSystem.cs`): Extracted revive timer, proximity check, and all revive state out of `LevelController`. Owns `IsActive`, `SecondsRemaining`. Emits `ReviveCompleted(PlayerController)` and `WindowExpired` signals. `LevelController` subscribes to both and delegates. `HudController` reads `LevelController.IsReviveActive`/`ReviveSecondsRemaining` which delegate to `ReviveSystem`.
+- **Signal inversion — "call down, signal up":** `PlayerController` now emits `[Signal] WentDown` instead of calling `LevelController.Instance?.HandlePlayerDown()`. `WeaponController` and `EnemyController` now emit `[Signal] ProjectileSpawned(Node2D)` instead of calling `LevelController.Instance?.AddToEntities()`. `LevelController` subscribes to all three at spawn time. `LevelController.HandlePlayerDown` is now private `OnPlayerWentDown`.
+- **Tuning consts moved to Resources:** `PlayerController` consts `WallKickVelocityX`, `SlideSpeedMultiplier`, `SlideDuration`, `JumpBufferDuration` moved to `FFCharacterDefinition` exports. `WeaponController` consts `RapidFireMultiplier`, `RapidFireDuration` moved to `FFWeaponDefinition` exports. Pool warm counts moved to `LevelConfig`.
+- **Definition backing fields:** `PlayerController`, `WeaponController`, and `EnemyController` each now assign a non-nullable `_definition` field in `_Ready()` using the `?? throw` pattern. All `Definition!.X` usages replaced with `_definition.X`.
+- **AssetRegistry startup validation:** `ValidateScenes()` runs after manifest load and throws `InvalidOperationException` on any `scene_*` key that fails to load — fail-fast at boot rather than silent spawn failures at runtime.
+**Decisions:**
+- `LevelController.Instance` singleton kept for HudController read-only display access and `BossRoomTrigger.AddToEntities()`. The refactored pattern removes all *mutating* calls through the singleton; the remaining uses are read-only property reads and entity addition (not state mutation).
+- `MaxJumps = 2` left as `PlayerController` constant per CLAUDE.md — applies equally to all characters by design.
+- `PhysicsServer2D.AreaSetParam` for physics-world gravity is applied in addition to the `EffectiveGravity` property, so both manual-gravity characters and engine-gravity bodies (future additions) are both covered.
+**Deferred:** Creating `data/levels/CretaceousLevel_config.tres` and assigning it in `Level.tscn` via the Godot editor — requires running Godot. The level functions correctly without it (all `Config?.X ?? default` null-coalescing preserves previous behavior).
+**Next:** Create `CretaceousLevel_config.tres` in the Godot editor and assign to `Level.tscn`. Then continue with Phase 3 generator work.
+**Tests added:** None — all changes are in Godot-layer code, which is integration-tested by running the game.
+
 ## 2026-04-23 — PlayerRoster refactor, composable state machine, title music
 
 **Phase:** 2 (post-completion cleanup)

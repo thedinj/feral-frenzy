@@ -2,15 +2,14 @@ using System;
 using FeralFrenzy.Godot.Autoloads;
 using FeralFrenzy.Godot.Characters;
 using FeralFrenzy.Godot.Constants;
-using FeralFrenzy.Godot.World;
 using Godot;
 
 namespace FeralFrenzy.Godot.Weapons;
 
 public partial class WeaponController : Node2D
 {
-    private const float RapidFireMultiplier = 0.3f;
-    private const float RapidFireDuration = 10f;
+    [Signal]
+    public delegate void ProjectileSpawnedEventHandler(Node2D projectile);
 
     [Export]
     public FFWeaponDefinition? Definition { get; set; }
@@ -18,13 +17,14 @@ public partial class WeaponController : Node2D
     private float _fireCooldown;
     private float _rapidFireTimer;
 
+    // assigned in _Ready()
+    private FFWeaponDefinition _definition = null!;
+
     public override void _Ready()
     {
-        if (Definition is null)
-        {
-            throw new InvalidOperationException(
+        _definition = Definition
+            ?? throw new InvalidOperationException(
                 $"{nameof(WeaponController)} '{Name}': Definition not assigned.");
-        }
     }
 
     public override void _Process(double delta)
@@ -48,8 +48,8 @@ public partial class WeaponController : Node2D
         }
 
         float rate = _rapidFireTimer > 0f
-            ? Definition!.FireRate * RapidFireMultiplier
-            : Definition!.FireRate;
+            ? _definition.FireRate * _definition.RapidFireMultiplier
+            : _definition.FireRate;
 
         _fireCooldown = rate;
         SpawnProjectile(direction, damageMultiplier);
@@ -57,7 +57,7 @@ public partial class WeaponController : Node2D
 
     public void ActivateRapidFire()
     {
-        _rapidFireTimer = RapidFireDuration;
+        _rapidFireTimer = _definition.RapidFireDuration;
     }
 
     private static Vector2 AimDirectionToVector(AimDirection dir)
@@ -78,8 +78,8 @@ public partial class WeaponController : Node2D
 
     private void SpawnProjectile(AimDirection direction, float damageMultiplier)
     {
-        string projectileKey = !string.IsNullOrEmpty(Definition!.ProjectileKey)
-            ? Definition.ProjectileKey
+        string projectileKey = !string.IsNullOrEmpty(_definition.ProjectileKey)
+            ? _definition.ProjectileKey
             : AssetKeys.SceneProjectile;
 
         PackedScene? scene = GetNode<AssetRegistry>(AutoloadPaths.AssetRegistry).GetScene(projectileKey);
@@ -89,23 +89,16 @@ public partial class WeaponController : Node2D
         }
 
         Vector2 dir = AimDirectionToVector(direction);
-        float impact = Definition.BaseImpact * damageMultiplier;
+        float impact = _definition.BaseImpact * damageMultiplier;
         Area2D node = scene.Instantiate<Area2D>();
         node.GlobalPosition = GlobalPosition;
 
         if (node is IPlayerProjectile proj)
         {
             PlayerController? firedBy = GetParent()?.GetParent() as PlayerController;
-            proj.InitializeFromWeapon(dir, Definition.ProjectileSpeed, impact, firedBy);
+            proj.InitializeFromWeapon(dir, _definition.ProjectileSpeed, impact, firedBy);
         }
 
-        if (LevelController.Instance is not null)
-        {
-            LevelController.Instance.AddToEntities(node);
-        }
-        else
-        {
-            GetTree().Root.AddChild(node);
-        }
+        EmitSignal(SignalName.ProjectileSpawned, node);
     }
 }

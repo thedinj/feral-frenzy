@@ -1,17 +1,25 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=12 format=3]
 
-[ext_resource type="Script" path="res://src/godot/enemies/PlaceholderBoss.cs" id="1_boss_ctrl"]
-[ext_resource type="Resource" path="res://data/enemies/Boss_enemy.tres" id="2_boss_def"]
+[ext_resource type="Script" path="res://src/godot/enemies/EnemyHost.cs" id="1_host"]
+[ext_resource type="Resource" path="res://data/enemies/Boss_enemy.tres" id="2_def"]
 [ext_resource type="SpriteFrames" path="res://data/placeholder_frames.tres" id="3_frames"]
+[ext_resource type="Script" path="res://src/godot/enemies/components/HitStunComponent.cs" id="4_hitstun"]
+[ext_resource type="Script" path="res://src/godot/enemies/behaviors/DownwardGravity.cs" id="5_gravity"]
+[ext_resource type="Script" path="res://src/godot/enemies/behaviors/PatternCycleBehavior.cs" id="6_cycle"]
+[ext_resource type="Script" path="res://src/godot/enemies/behaviors/ChargeBehavior.cs" id="7_charge"]
+[ext_resource type="Script" path="res://src/godot/enemies/behaviors/BurstFireBehavior.cs" id="8_burst"]
+[ext_resource type="Script" path="res://src/godot/enemies/behaviors/SummonBehavior.cs" id="9_summon"]
+[ext_resource type="Script" path="res://src/godot/enemies/behaviors/BossDeath.cs" id="10_death"]
+[ext_resource type="Script" path="res://src/godot/enemies/components/EnemyVisuals.cs" id="11_visuals"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_boss"]
 size = Vector2(40, 40)
 
-[node name="Boss" type="CharacterBody2D"]
+[node name="Boss" type="CharacterBody2D" groups=["bosses"]]
 collision_layer = 4
 collision_mask = 1
-script = ExtResource("1_boss_ctrl")
-Definition = ExtResource("2_boss_def")
+script = ExtResource("1_host")
+Definition = ExtResource("2_def")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_boss")
@@ -20,3 +28,36 @@ shape = SubResource("RectangleShape2D_boss")
 scale = Vector2(0.35, 0.35)
 sprite_frames = ExtResource("3_frames")
 animation = &"idle"
+
+[node name="HitStun" type="Node" parent="."]
+script = ExtResource("4_hitstun")
+
+[node name="Gravity" type="Node" parent="."]
+script = ExtResource("5_gravity")
+
+[node name="Behavior" type="Node" parent="."]
+script = ExtResource("6_cycle")
+InitialDelay = 2.0
+
+[node name="Charge" type="Node" parent="Behavior"]
+script = ExtResource("7_charge")
+Speed = 200.0
+Duration = 1.5
+
+[node name="Burst" type="Node" parent="Behavior"]
+script = ExtResource("8_burst")
+Count = 5
+AngleStep = 0.3
+ProjectileSpeed = 200.0
+ProjectileImpact = 1.0
+
+[node name="Summon" type="Node" parent="Behavior"]
+script = ExtResource("9_summon")
+AssetKey = "scene_enemy_ground_patroller"
+OffsetX = 40.0
+
+[node name="Death" type="Node" parent="."]
+script = ExtResource("10_death")
+
+[node name="Visuals" type="Node" parent="."]
+script = ExtResource("11_visuals")

@@ -9,17 +9,19 @@ namespace FeralFrenzy.Godot.Characters;
 
 public partial class PlayerController : CharacterBody2D
 {
-    private const float WallKickVelocityX = 200f;
-    private const float SlideSpeedMultiplier = 1.4f;
-    private const float SlideDuration = 0.35f;
     private const int MaxJumps = 2;
-    private const float JumpBufferDuration = 0.12f;
+
+    [Signal]
+    public delegate void WentDownEventHandler();
 
     [Export]
     public FFCharacterDefinition? Definition { get; set; }
 
     [Export]
     public int PlayerIndex { get; set; } = 0;
+
+    // assigned in _Ready()
+    private FFCharacterDefinition _definition = null!;
 
     // Initialized in _Ready — Godot does not call _Ready during construction
     private InputManager _input = null!;
@@ -49,11 +51,9 @@ public partial class PlayerController : CharacterBody2D
 
     public override void _Ready()
     {
-        if (Definition is null)
-        {
-            throw new InvalidOperationException(
+        _definition = Definition
+            ?? throw new InvalidOperationException(
                 $"{nameof(PlayerController)} '{Name}': Definition not assigned.");
-        }
 
         _sprite = GetNodeOrNull<AnimatedSprite2D>(NodePaths.AnimatedSprite);
         _collisionShape = GetNode<CollisionShape2D>(NodePaths.CollisionShape);
@@ -61,7 +61,7 @@ public partial class PlayerController : CharacterBody2D
 
         _input = GetNode<InputManager>(AutoloadPaths.InputManager);
 
-        CurrentHp = Definition.MaxHp;
+        CurrentHp = _definition.MaxHp;
 
         _statusEffects = new StatusEffectController();
         AddChild(_statusEffects);
@@ -81,7 +81,7 @@ public partial class PlayerController : CharacterBody2D
 
         if (_input.IsActionJustPressedFromEvent(@event, PlayerIndex, InputActions.Jump))
         {
-            _jumpBufferTimer = JumpBufferDuration;
+            _jumpBufferTimer = _definition.JumpBufferDuration;
         }
 
         if (_input.IsActionJustPressedFromEvent(@event, PlayerIndex, InputActions.Slide))
@@ -131,7 +131,7 @@ public partial class PlayerController : CharacterBody2D
 
         int scaled = Mathf.Max(1, Mathf.RoundToInt(amount * _statusEffects.GetIncomingDamageMultiplier()));
         CurrentHp -= scaled;
-        _invincibilityTimer = Definition!.InvincibilitySeconds;
+        _invincibilityTimer = _definition.InvincibilitySeconds;
 
         if (CurrentHp <= 0)
         {
@@ -155,7 +155,7 @@ public partial class PlayerController : CharacterBody2D
             return;
         }
 
-        CurrentHp = Mathf.Min(CurrentHp + amount, Definition!.MaxHp);
+        CurrentHp = Mathf.Min(CurrentHp + amount, _definition.MaxHp);
     }
 
     public WeaponController? GetEquippedWeapon() => _equippedWeapon;
@@ -163,8 +163,8 @@ public partial class PlayerController : CharacterBody2D
     public void Revive(bool fullHeal = false)
     {
         IsDown = false;
-        CurrentHp = fullHeal ? Definition!.MaxHp : 1;
-        _invincibilityTimer = Definition!.InvincibilitySeconds;
+        CurrentHp = fullHeal ? _definition.MaxHp : 1;
+        _invincibilityTimer = _definition.InvincibilitySeconds;
         _statusEffects.SetProcess(true);
         SetPhysicsProcess(true);
         _jumpsRemaining = MaxJumps;
@@ -226,7 +226,7 @@ public partial class PlayerController : CharacterBody2D
         }
 
         TryPlayAnimation(AnimationNames.Death);
-        LevelController.Instance?.HandlePlayerDown(this);
+        EmitSignal(SignalName.WentDown);
     }
 
     private void PlayHitFlash()
@@ -266,7 +266,8 @@ public partial class PlayerController : CharacterBody2D
     {
         if (!IsOnFloor())
         {
-            Velocity = Velocity with { Y = Velocity.Y + (PhysicsConstants.Gravity * delta) };
+            float gravity = LevelController.Instance?.EffectiveGravity ?? PhysicsConstants.Gravity;
+            Velocity = Velocity with { Y = Velocity.Y + (gravity * delta) };
         }
     }
 
@@ -284,7 +285,7 @@ public partial class PlayerController : CharacterBody2D
 
         if (IsOnFloor())
         {
-            Velocity = Velocity with { Y = Definition!.JumpVelocity * Definition.JumpArcMultiplier };
+            Velocity = Velocity with { Y = _definition.JumpVelocity * _definition.JumpArcMultiplier };
             _jumpsRemaining = MaxJumps - 1;
             _jumpBufferTimer = 0f;
         }
@@ -292,14 +293,14 @@ public partial class PlayerController : CharacterBody2D
         {
             Vector2 wallNormal = GetWallNormal();
             Velocity = new Vector2(
-                wallNormal.X * WallKickVelocityX,
-                Definition!.JumpVelocity * Definition.JumpArcMultiplier);
+                wallNormal.X * _definition.WallKickVelocityX,
+                _definition.JumpVelocity * _definition.JumpArcMultiplier);
             _jumpsRemaining = MaxJumps - 1;
             _jumpBufferTimer = 0f;
         }
         else if (_jumpsRemaining > 0)
         {
-            Velocity = Velocity with { Y = Definition!.JumpVelocity * Definition.JumpArcMultiplier };
+            Velocity = Velocity with { Y = _definition.JumpVelocity * _definition.JumpArcMultiplier };
             _jumpsRemaining--;
             _jumpBufferTimer = 0f;
         }
@@ -319,7 +320,7 @@ public partial class PlayerController : CharacterBody2D
             dir = -dir;
         }
 
-        Velocity = Velocity with { X = dir * Definition!.MoveSpeed * _statusEffects.GetSpeedMultiplier() };
+        Velocity = Velocity with { X = dir * _definition.MoveSpeed * _statusEffects.GetSpeedMultiplier() };
 
         if (dir != 0f && _sprite is not null)
         {
@@ -338,10 +339,10 @@ public partial class PlayerController : CharacterBody2D
         }
 
         _isSliding = true;
-        _slideTimer = SlideDuration;
+        _slideTimer = _definition.SlideDuration;
 
         float dir = _sprite?.FlipH ?? false ? -1f : 1f;
-        Velocity = Velocity with { X = dir * Definition!.MoveSpeed * SlideSpeedMultiplier };
+        Velocity = Velocity with { X = dir * _definition.MoveSpeed * _definition.SlideSpeedMultiplier };
 
         // Shrink collision shape to allow gap traversal — the solvability equaliser
         _collisionShape.Scale = new Vector2(1f, 0.5f);
@@ -401,7 +402,7 @@ public partial class PlayerController : CharacterBody2D
             }
         }
 
-        _equippedWeapon.Fire(_aimDirection, Definition!.WeaponDamageMultiplier * _statusEffects.GetDamageMultiplier());
+        _equippedWeapon.Fire(_aimDirection, _definition.WeaponDamageMultiplier * _statusEffects.GetDamageMultiplier());
     }
 
     private void UpdateAnimation()

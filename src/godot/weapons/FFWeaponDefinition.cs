@@ -42,4 +42,10 @@ public partial class FFWeaponDefinition : Resource
 
     [Export]
     public string SoundKey { get; set; } = string.Empty;
+
+    [Export]
+    public float RapidFireMultiplier { get; set; } = 0.3f;
+
+    [Export]
+    public float RapidFireDuration { get; set; } = 10f;
 }

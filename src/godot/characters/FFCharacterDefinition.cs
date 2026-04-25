@@ -47,4 +47,16 @@ public partial class FFCharacterDefinition : Resource
 
     [Export]
     public float InvincibilitySeconds { get; set; } = 1.2f;
+
+    [Export]
+    public float WallKickVelocityX { get; set; } = 200f;
+
+    [Export]
+    public float SlideSpeedMultiplier { get; set; } = 1.4f;
+
+    [Export]
+    public float SlideDuration { get; set; } = 0.35f;
+
+    [Export]
+    public float JumpBufferDuration { get; set; } = 0.12f;
 }
