@@ -6,6 +6,8 @@ namespace FeralFrenzy.Godot.Enemies.Behaviors;
 public partial class DiveBehavior : Node, ITickBehavior
 {
     private const float DiveDetectRangeX = 32f;
+    private const float ContactRadius = 14f;
+    private const float ContactDamageCooldown = 0.5f;
 
     [Export]
     public float PatrolSpeed { get; set; } = 60f;
@@ -15,9 +17,6 @@ public partial class DiveBehavior : Node, ITickBehavior
 
     [Export]
     public float PatrolHeight { get; set; } = 60f;
-
-    [Export]
-    public float GroundY { get; set; } = 152f;
 
     private enum DiveState
     {
@@ -29,6 +28,7 @@ public partial class DiveBehavior : Node, ITickBehavior
     private DiveState _state = DiveState.Patrolling;
     private float _patrolDirection = 1f;
     private float _targetY;
+    private float _damageCooldown;
     private bool _initialized;
 
     public void Tick(EnemyHost host, float delta)
@@ -38,6 +38,8 @@ public partial class DiveBehavior : Node, ITickBehavior
             _targetY = host.GlobalPosition.Y - PatrolHeight;
             _initialized = true;
         }
+
+        _damageCooldown = Mathf.Max(0f, _damageCooldown - delta);
 
         switch (_state)
         {
@@ -67,7 +69,8 @@ public partial class DiveBehavior : Node, ITickBehavior
                 _patrolDirection = dir;
             }
         }
-        else if (host.GlobalPosition.X < 10f || host.GlobalPosition.X > 790f)
+        else if ((host.GlobalPosition.X < 10f && _patrolDirection < 0f)
+            || (host.GlobalPosition.X > 790f && _patrolDirection > 0f))
         {
             _patrolDirection *= -1f;
         }
@@ -99,9 +102,33 @@ public partial class DiveBehavior : Node, ITickBehavior
     {
         host.Velocity = new Vector2(host.Velocity.X * 0.8f, DiveSpeed);
 
-        if (host.GlobalPosition.Y >= GroundY)
+        if (_damageCooldown <= 0f)
+        {
+            DamageOverlappingPlayers(host);
+        }
+
+        if (host.IsOnFloor())
         {
             _state = DiveState.Returning;
+        }
+    }
+
+    private void DamageOverlappingPlayers(EnemyHost host)
+    {
+        var players = host.GetTree().GetNodesInGroup("players");
+        foreach (Node node in players)
+        {
+            if (node is not PlayerController player || player.IsDown || player.IsDead)
+            {
+                continue;
+            }
+
+            if (host.GlobalPosition.DistanceTo(player.GlobalPosition) <= ContactRadius)
+            {
+                player.TakeDamage(1);
+                _damageCooldown = ContactDamageCooldown;
+                break;
+            }
         }
     }
 

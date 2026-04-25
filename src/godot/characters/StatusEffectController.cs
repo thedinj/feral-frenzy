@@ -44,6 +44,9 @@ public partial class StatusEffectController : Node
     public bool AreControlsReversed()
         => _activeEffects.OfType<ReverseControlsEffect>().Any();
 
+    public bool IsBerserkerActive()
+        => _activeEffects.OfType<BerserkerEffect>().Any();
+
     private void TickEffects(float delta)
     {
         for (int i = _activeEffects.Count - 1; i >= 0; i--)

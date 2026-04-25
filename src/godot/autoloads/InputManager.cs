@@ -7,8 +7,9 @@ namespace FeralFrenzy.Godot.Autoloads;
 
 public partial class InputManager : Node
 {
-    // Player 0 = keyboard (device -1)
-    // Players 1-3 = gamepads (device 0, 1, 2)
+    // Player 0 = gamepad device 0
+    // Player 1 = keyboard
+    // Players 2-3 = gamepads (device 1, 2)
     private const int MaxGamepadCount = 3;
 
     private readonly Dictionary<int, HashSet<JoyButton>> _prevButtons =
@@ -38,7 +39,7 @@ public partial class InputManager : Node
             return Input.IsActionJustPressed(action);
         }
 
-        int device = playerIndex - 1;
+        int device = ToDevice(playerIndex);
         if (!Input.IsJoyKnown(device))
         {
             return false;
@@ -54,7 +55,7 @@ public partial class InputManager : Node
             return Input.IsActionPressed(action);
         }
 
-        int device = playerIndex - 1;
+        int device = ToDevice(playerIndex);
         if (!Input.IsJoyKnown(device))
         {
             return false;
@@ -70,7 +71,7 @@ public partial class InputManager : Node
             return Input.GetAxis(negativeAction, positiveAction);
         }
 
-        int device = playerIndex - 1;
+        int device = ToDevice(playerIndex);
         if (!Input.IsJoyKnown(device))
         {
             return 0f;
@@ -97,7 +98,7 @@ public partial class InputManager : Node
             return @event is InputEventKey key && key.Pressed && !key.Echo && key.IsAction(action);
         }
 
-        int device = playerIndex - 1;
+        int device = ToDevice(playerIndex);
         if (!Input.IsJoyKnown(device))
         {
             return false;
@@ -147,7 +148,7 @@ public partial class InputManager : Node
             return Vector2.Zero;
         }
 
-        int device = playerIndex - 1;
+        int device = ToDevice(playerIndex);
         if (!Input.IsJoyKnown(device))
         {
             return Vector2.Zero;
@@ -167,7 +168,7 @@ public partial class InputManager : Node
             return Vector2.Zero;
         }
 
-        int device = playerIndex - 1;
+        int device = ToDevice(playerIndex);
         if (!Input.IsJoyKnown(device))
         {
             return Vector2.Zero;
@@ -179,6 +180,10 @@ public partial class InputManager : Node
 
         return raw.Length() < InputConstants.GamepadDeadZone ? Vector2.Zero : raw;
     }
+
+    // Maps a player index to a Godot joypad device index, skipping the keyboard slot.
+    private static int ToDevice(int playerIndex) =>
+        playerIndex < InputConstants.KeyboardPlayerIndex ? playerIndex : playerIndex - 1;
 
     private static JoyButton? ActionToJoyButton(string action)
     {

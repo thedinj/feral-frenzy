@@ -13,3 +13,4 @@ SceneKey = "scene_enemy_boss"
 BaseCountPerPlayer = 0
 MaxHp = 30.0
 HitStunSeconds = 0.1
+InvincibilitySeconds = 0.4

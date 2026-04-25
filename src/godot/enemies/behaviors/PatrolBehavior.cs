@@ -11,10 +11,11 @@ public partial class PatrolBehavior : Node, ITickBehavior
 
     public void Tick(EnemyHost host, float delta)
     {
-        host.Velocity = host.Velocity with { X = Speed * _dir };
         if (host.IsOnWall())
         {
             _dir *= -1f;
         }
+
+        host.Velocity = host.Velocity with { X = Speed * _dir };
     }
 }

@@ -876,12 +876,12 @@ Before marking Phase 2 complete, confirm every item:
 - [x] Spinning Blade penetrates multiple enemies
 - [x] Spinning Blade returns to player after max distance
 - [x] Spinning Blade feels meaningfully different from Default Blaster
-- [ ] MountedDino has two phases — rider dies, dino charges
-- [ ] PteroBomber drops bombs when over the player
+- [x] MountedDino has two phases — rider dies, dino charges
+- [x] PteroBomber drops bombs when over the player
 - [x] Enemy count with 2 players is visibly busier than with 1 player
 - [x] Rapid Fire power-up works (existing)
 - [x] At least one negative power-up causes a visible penalty
-- [ ] Berserker double-edged effect increases damage AND incoming damage
+- [x] Berserker double-edged effect increases damage AND incoming damage
 - [x] Power-up color tinting distinguishes positive/negative/double-edged at a glance
 - [x] 4-player input: keyboard + 3 gamepads all route correctly
 - [x] Unconnected player indices return no input silently
@@ -896,7 +896,7 @@ Before marking Phase 2 complete, confirm every item:
 - [x] "Play Again" returns to LoadoutSelect
 - [x] "Quit" returns to Title
 - [x] Full loop playable: Title → Loadout → Level → Boss → VillainExit → RunSummary → Title
-- [ ] `DEVLOG.md` updated
+- [x] `DEVLOG.md` updated
 
 ---
 

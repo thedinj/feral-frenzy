@@ -42,17 +42,12 @@ public partial class WeaponController : Node2D
 
     public void Fire(AimDirection direction, float damageMultiplier)
     {
-        if (_fireCooldown > 0f)
-        {
-            return;
-        }
+        SpawnIfReady(AimDirectionToVector(direction), damageMultiplier);
+    }
 
-        float rate = _rapidFireTimer > 0f
-            ? _definition.FireRate * _definition.RapidFireMultiplier
-            : _definition.FireRate;
-
-        _fireCooldown = rate;
-        SpawnProjectile(direction, damageMultiplier);
+    public void FireRaw(Vector2 direction, float damageMultiplier)
+    {
+        SpawnIfReady(direction.Normalized(), damageMultiplier);
     }
 
     public void ActivateRapidFire()
@@ -76,7 +71,21 @@ public partial class WeaponController : Node2D
         };
     }
 
-    private void SpawnProjectile(AimDirection direction, float damageMultiplier)
+    private void SpawnIfReady(Vector2 direction, float damageMultiplier)
+    {
+        if (_fireCooldown > 0f)
+        {
+            return;
+        }
+
+        _fireCooldown = _rapidFireTimer > 0f
+            ? _definition.FireRate * _definition.RapidFireMultiplier
+            : _definition.FireRate;
+
+        SpawnProjectile(direction, damageMultiplier);
+    }
+
+    private void SpawnProjectile(Vector2 direction, float damageMultiplier)
     {
         string projectileKey = !string.IsNullOrEmpty(_definition.ProjectileKey)
             ? _definition.ProjectileKey
@@ -88,7 +97,6 @@ public partial class WeaponController : Node2D
             return;
         }
 
-        Vector2 dir = AimDirectionToVector(direction);
         float impact = _definition.BaseImpact * damageMultiplier;
         Area2D node = scene.Instantiate<Area2D>();
         node.GlobalPosition = GlobalPosition;
@@ -96,7 +104,7 @@ public partial class WeaponController : Node2D
         if (node is IPlayerProjectile proj)
         {
             PlayerController? firedBy = GetParent()?.GetParent() as PlayerController;
-            proj.InitializeFromWeapon(dir, _definition.ProjectileSpeed, impact, firedBy);
+            proj.InitializeFromWeapon(direction, _definition.ProjectileSpeed, impact, firedBy);
         }
 
         EmitSignal(SignalName.ProjectileSpawned, node);

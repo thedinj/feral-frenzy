@@ -14,6 +14,9 @@ public partial class PlayerController : CharacterBody2D
     [Signal]
     public delegate void WentDownEventHandler();
 
+    [Signal]
+    public delegate void WeaponChangedEventHandler(WeaponController weapon);
+
     [Export]
     public FFCharacterDefinition? Definition { get; set; }
 
@@ -41,6 +44,9 @@ public partial class PlayerController : CharacterBody2D
     private int _jumpsRemaining;
     private WeaponController? _equippedWeapon;
     private AimDirection _aimDirection = AimDirection.Right;
+
+    // Set when gamepad stick provides a precise direction; null means use _aimDirection enum.
+    private Vector2? _rawAimVector;
     private StatusEffectController _statusEffects = null!;
 
     public bool IsDown { get; private set; }
@@ -148,6 +154,8 @@ public partial class PlayerController : CharacterBody2D
         _statusEffects.Apply(effect);
     }
 
+    public bool IsBerserkerActive => _statusEffects.IsBerserkerActive();
+
     public void RestoreHp(int amount)
     {
         if (IsDown || IsDead)
@@ -192,6 +200,20 @@ public partial class PlayerController : CharacterBody2D
 
         _equippedWeapon = weapon;
         _weaponMount?.AddChild(weapon);
+        EmitSignal(SignalName.WeaponChanged, weapon);
+    }
+
+    // Snaps to exact horizontal when the stick elevation is within the threshold angle,
+    // preventing accidental floor shots when the player intends to aim sideways.
+    private static Vector2 SnapToHorizontalIfClose(Vector2 v)
+    {
+        float elevationRad = Mathf.Atan2(Mathf.Abs(v.Y), Mathf.Abs(v.X));
+        if (elevationRad < Mathf.DegToRad(InputConstants.GamepadHorizontalSnapDeg))
+        {
+            return new Vector2(Mathf.Sign(v.X), 0f);
+        }
+
+        return v.Normalized();
     }
 
     private static AimDirection VectorToAimDirection(Vector2 v)
@@ -352,21 +374,23 @@ public partial class PlayerController : CharacterBody2D
     {
         if (PlayerIndex != InputConstants.KeyboardPlayerIndex)
         {
-            // Right stick: aim in any of 8 directions and auto-fire.
+            // Right stick: precise angle autofire.
             Vector2 rightStick = _input.GetRightStickVector(PlayerIndex);
             if (rightStick.Length() > InputConstants.GamepadAimThreshold)
             {
-                _aimDirection = VectorToAimDirection(rightStick);
+                _rawAimVector = SnapToHorizontalIfClose(rightStick);
                 _fireRequested = true;
                 return;
             }
 
-            // Fallback: face direction.
+            // No stick input — clear raw aim and fall back to face direction.
+            _rawAimVector = null;
             _aimDirection = _sprite?.FlipH ?? false ? AimDirection.Left : AimDirection.Right;
             return;
         }
 
-        // Keyboard P1: facing direction + optional up/down modifier → 6 directions.
+        // Keyboard: facing direction + optional up/down modifier → 6 directions.
+        _rawAimVector = null;
         bool up = _input.IsActionPressed(PlayerIndex, InputActions.AimUp);
         bool down = _input.IsActionPressed(PlayerIndex, InputActions.AimDown);
         bool facingLeft = _sprite?.FlipH ?? false;
@@ -393,16 +417,29 @@ public partial class PlayerController : CharacterBody2D
             return;
         }
 
+        float damage = _definition.WeaponDamageMultiplier * _statusEffects.GetDamageMultiplier();
+
         if (PlayerIndex != InputConstants.KeyboardPlayerIndex)
         {
-            Vector2 leftStick = _input.GetLeftStickVector(PlayerIndex);
-            if (leftStick.Length() > InputConstants.GamepadDeadZone)
+            // Right stick raw aim was already captured in HandleAiming.
+            // For X-button shots with no right stick, fall back to left stick (also precise).
+            if (_rawAimVector is null)
             {
-                _aimDirection = VectorToAimDirection(leftStick);
+                Vector2 leftStick = _input.GetLeftStickVector(PlayerIndex);
+                if (leftStick.Length() > InputConstants.GamepadDeadZone)
+                {
+                    _rawAimVector = SnapToHorizontalIfClose(leftStick);
+                }
+            }
+
+            if (_rawAimVector is Vector2 rawDir)
+            {
+                _equippedWeapon.FireRaw(rawDir, damage);
+                return;
             }
         }
 
-        _equippedWeapon.Fire(_aimDirection, _definition.WeaponDamageMultiplier * _statusEffects.GetDamageMultiplier());
+        _equippedWeapon.Fire(_aimDirection, damage);
     }
 
     private void UpdateAnimation()

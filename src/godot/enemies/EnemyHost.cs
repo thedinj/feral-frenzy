@@ -20,7 +20,7 @@ public partial class EnemyHost : CharacterBody2D
     public delegate void DiedEventHandler();
 
     [Signal]
-    public delegate void ProjectileSpawnRequestedEventHandler(Vector2 dir, float speed, float impact);
+    public delegate void ProjectileSpawnRequestedEventHandler(Vector2 spawnPos, Vector2 dir, float speed, float impact);
 
     [Signal]
     public delegate void MinionSummonRequestedEventHandler(string assetKey, Vector2 offset1, Vector2 offset2);
@@ -39,6 +39,7 @@ public partial class EnemyHost : CharacterBody2D
     private IGravityBehavior _gravity = null!;
     private IDeathBehavior? _death;
     private IDamageBehavior? _damageBehavior;
+    private float _invincibilityTimer;
 
     public override void _Ready()
     {
@@ -81,6 +82,11 @@ public partial class EnemyHost : CharacterBody2D
         }
 
         float f = (float)delta;
+        if (_invincibilityTimer > 0f)
+        {
+            _invincibilityTimer -= f;
+        }
+
         _gravity.Apply(this, f);
         _hitStun.Tick(f);
 
@@ -98,18 +104,25 @@ public partial class EnemyHost : CharacterBody2D
 
     public void TakeDamage(float impact)
     {
-        if (IsDead)
+        if (IsDead || _invincibilityTimer > 0f)
         {
             return;
+        }
+
+        // Always stun and flash so hits feel responsive regardless of which phase absorbs damage.
+        _hitStun.Activate(_definition.HitStunSeconds);
+        if (_definition.InvincibilitySeconds > 0f)
+        {
+            _invincibilityTimer = _definition.InvincibilitySeconds;
         }
 
         if (_damageBehavior is not null && !_damageBehavior.HandleDamage(this, impact))
         {
+            EmitSignal(SignalName.HpChanged, CurrentHp, _definition.MaxHp);
             return;
         }
 
         CurrentHp = MathF.Max(0f, CurrentHp - impact);
-        _hitStun.Activate(_definition.HitStunSeconds);
         EmitSignal(SignalName.HpChanged, CurrentHp, _definition.MaxHp);
 
         if (CurrentHp <= 0f)
@@ -145,7 +158,7 @@ public partial class EnemyHost : CharacterBody2D
     public void NotifyEnemyKilled() => _gameState.NotifyEnemyKilled();
 
     public void RequestProjectile(Vector2 dir, float speed, float impact)
-        => EmitSignal(SignalName.ProjectileSpawnRequested, dir, speed, impact);
+        => EmitSignal(SignalName.ProjectileSpawnRequested, GlobalPosition, dir, speed, impact);
 
     public void RequestMinions(string assetKey, Vector2 offset1, Vector2 offset2)
         => EmitSignal(SignalName.MinionSummonRequested, assetKey, offset1, offset2);

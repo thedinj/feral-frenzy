@@ -31,4 +31,9 @@ public partial class FFEnemyDefinition : Resource
 
     [Export]
     public float HitStunSeconds { get; set; } = 0.15f;
+
+    // Per-hit invincibility window — prevents rapid-fire from stacking full damage.
+    // 0 = no i-frames (default for regular enemies). Boss uses ~0.4.
+    [Export]
+    public float InvincibilitySeconds { get; set; } = 0f;
 }

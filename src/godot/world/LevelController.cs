@@ -153,6 +153,7 @@ public partial class LevelController : Node2D
         {
             SpawnPlayers();
             SpawnScaledEnemies();
+            WireStaticEnemies();
             PreWarmPool();
         }
 
@@ -205,15 +206,18 @@ public partial class LevelController : Node2D
         _entities.AddChild(projectile);
     }
 
-    private void OnEntityProjectileSpawnRequested(Vector2 dir, float speed, float impact)
+    private void OnEntityProjectileSpawnRequested(Vector2 spawnPos, Vector2 dir, float speed, float impact)
     {
+        GD.Print($"[LevelController] ProjectileSpawnRequested at {spawnPos} dir={dir}");
         PackedScene? scene = _registry.GetScene(AssetKeys.SceneProjectile);
         if (scene is null)
         {
+            GD.PushWarning("[LevelController] SceneProjectile not found in registry.");
             return;
         }
 
         ProjectileController projectile = scene.Instantiate<ProjectileController>();
+        projectile.GlobalPosition = spawnPos;
         projectile.Initialize(dir, speed, impact, ProjectileOwner.Enemy);
         _entities.AddChild(projectile);
     }
@@ -248,6 +252,7 @@ public partial class LevelController : Node2D
             }
 
             player.WentDown += () => OnPlayerWentDown(player);
+            player.WeaponChanged += OnPlayerWeaponChanged;
 
             if (spawnPoints[i] is Node2D spawnNode)
             {
@@ -322,6 +327,25 @@ public partial class LevelController : Node2D
         ActiveBoss.MinionSummonRequested += OnMinionSummonRequested;
     }
 
+    private void WireStaticEnemies()
+    {
+        // Static enemies placed directly in Level.tscn are never passed through AddToEntities,
+        // so their projectile/minion signals need to be connected here at level activation.
+        int wired = 0;
+        foreach (Node child in GetChildren())
+        {
+            if (child is EnemyHost enemy)
+            {
+                enemy.ProjectileSpawnRequested += OnEntityProjectileSpawnRequested;
+                enemy.MinionSummonRequested += OnMinionSummonRequested;
+                GD.Print($"[LevelController] Wired static enemy: {enemy.Name} at {enemy.GlobalPosition}");
+                wired++;
+            }
+        }
+
+        GD.Print($"[LevelController] WireStaticEnemies: {wired} enemies wired.");
+    }
+
     private void SpawnScaledEnemies()
     {
         if (_gameState.ActivePlayerCount < 2)
@@ -349,9 +373,13 @@ public partial class LevelController : Node2D
             return;
         }
 
-        var weapon = new WeaponController { Definition = def };
+        // WeaponChanged signal wired above in SpawnPlayers will subscribe ProjectileSpawned.
+        player.EquipWeapon(new WeaponController { Definition = def });
+    }
+
+    private void OnPlayerWeaponChanged(WeaponController weapon)
+    {
         weapon.ProjectileSpawned += OnEntityProjectileSpawned;
-        player.EquipWeapon(weapon);
     }
 
     private PlayerController? SpawnPlayer(int playerIndex)

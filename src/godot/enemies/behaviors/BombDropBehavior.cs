@@ -22,6 +22,7 @@ public partial class BombDropBehavior : Node, ITickBehavior
     private float _dropTimer;
     private float _patrolDirection = 1f;
     private bool _initialized;
+    private bool _timerFiredOnce;
 
     public void Tick(EnemyHost host, float delta)
     {
@@ -31,20 +32,38 @@ public partial class BombDropBehavior : Node, ITickBehavior
             _initialized = true;
         }
 
-        host.Velocity = new Vector2(PatrolSpeed * _patrolDirection, 0f);
-
         if (host.IsOnWall()
-            || host.GlobalPosition.X < BoundaryLeft
-            || host.GlobalPosition.X > BoundaryRight)
+            || (host.GlobalPosition.X < BoundaryLeft && _patrolDirection < 0f)
+            || (host.GlobalPosition.X > BoundaryRight && _patrolDirection > 0f))
         {
             _patrolDirection *= -1f;
         }
 
+        host.Velocity = new Vector2(PatrolSpeed * _patrolDirection, 0f);
+
         _dropTimer -= delta;
-        if (_dropTimer <= 0f && IsOverPlayer(host))
+        if (_dropTimer <= 0f)
         {
-            host.RequestProjectile(Vector2.Down, 200f, 1f);
-            _dropTimer = DropCooldown;
+            if (!_timerFiredOnce)
+            {
+                _timerFiredOnce = true;
+            }
+
+            PlayerController? nearest = host.FindNearestPlayer();
+            if (nearest is null)
+            {
+            }
+            else
+            {
+                float xDiff = Mathf.Abs(nearest.GlobalPosition.X - host.GlobalPosition.X);
+
+                if (xDiff < OverPlayerXThreshold)
+                {
+                    host.RequestProjectile(Vector2.Down, 200f, 1f);
+                    _dropTimer = DropCooldown;
+                    _timerFiredOnce = false;
+                }
+            }
         }
     }
 

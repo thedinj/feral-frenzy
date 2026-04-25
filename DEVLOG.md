@@ -1,5 +1,45 @@
 # Feral Frenzy — Dev Log
 
+## 2026-04-25 — Phase 2 confirmed complete: input swap, gamepad feel, enemy contact damage, boss i-frames
+
+**Phase:** 2 (final sign-off)
+**Built:**
+- **Controller/keyboard swap:** `GamepadPlayerIndex = 0`, `KeyboardPlayerIndex = 1`. `InputManager.ToDevice` helper skips the keyboard slot when mapping player index → joypad device. `LoadoutSelectController.DeviceToPlayerIndex` is the inverse. Gamepad P1 auto-joins; keyboard P2 is now optional — game starts as soon as gamepad P1 confirms, regardless of keyboard.
+- **Right stick direction priority:** Fixed `HandleFiring` — left stick no longer overwrites `_aimDirection` when the right stick is already above threshold. Right stick always wins.
+- **Precise right stick aiming:** Replaced 8-direction snap with raw stick vector. `WeaponController.FireRaw(Vector2, float)` bypasses `AimDirectionToVector`. `PlayerController._rawAimVector` (`Vector2?`) carries the precise direction; `null` means fall back to enum. Left stick X-button shots also use the raw path.
+- **Horizontal snap zone:** `SnapToHorizontalIfClose` snaps to exact left/right when stick elevation is within ±15° of horizontal (`InputConstants.GamepadHorizontalSnapDeg`), preventing accidental floor shots. Applied to both right stick autofire and left stick X-button shots.
+- **Dive enemy contact damage:** `DiveBehavior.DamageOverlappingPlayers` checks proximity (14px radius) during the Diving state and calls `player.TakeDamage(1)` with a 0.5s cooldown. Player i-frames provide the second protection layer.
+- **Weapon feel tuning:** `DefaultBlaster_weapon.tres` `FireRate` 0.15 → 0.22s (~6.7 → ~4.5 shots/sec). `RapidFireMultiplier` 0.3 → 0.5 (rapid fire rate 0.045s → 0.11s; was ~22/sec, now ~9/sec).
+- **Boss i-frames:** `FFEnemyDefinition.InvincibilitySeconds` field added (default 0 — no change to regular enemies). `EnemyHost` tracks `_invincibilityTimer`, guards `TakeDamage` entry. `Boss_enemy.tres` set to 0.4s — a full burst at base fire rate lands ~1.8 hits instead of all of them.
+
+**Decisions:**
+- `Vector2?` (nullable) used for raw aim rather than `Vector2.Zero` sentinel — zero is a valid direction after normalization; null unambiguously means "no input."
+- Horizontal snap applied only to the horizontal axis (not all 8 directions) — the goal was floor-shot prevention, not restoring the old sector system.
+- Boss `InvincibilitySeconds` kept separate from `HitStunSeconds` — hit stun locks AI, i-frames block damage; they serve different purposes and need independent tuning.
+- Keyboard player made opt-in at the loadout screen rather than always-present — supports solo controller play without requiring a second human to join and immediately confirm.
+
+**Deferred:** Nothing new.
+**Next:** Phase 3 — real sprites, audio, chapter structure, generator integration.
+**Tests added:** None — all changes are Godot-layer, integration-tested by running the game.
+
+---
+
+## 2026-04-25 — MountedDino/PteroBomber placement, Berserker HUD indicator
+
+**Phase:** 2
+**Built:**
+- Removed stale null `[Export]` overrides from all enemy instances in `Level.tscn` (leftover from pre-component EnemyController era — Godot ignores unknown props but they were noise)
+- MountedDino and PteroBomber were already present in Level.tscn from the previous session; confirmed placements are correct (MountedDino1 at 680,155 near boss trigger; PteroBomber1 at 400,40 aerial)
+- `StatusEffectController.IsBerserkerActive()` — mirrors the `AreControlsReversed()` pattern
+- `PlayerController.IsBerserkerActive` — public bool property delegating to StatusEffectController
+- `BerserkerLabel` added to `HUD.tscn` — purple, top-center, hidden by default
+- `HudController._Process` polls `LevelController.Instance?.GetPlayers()` each frame; shows label when any player has Berserker active
+**Decisions:**
+- Single shared label (not per-player) — sufficient for 1–2 player test; per-player HP bars with individual status icons are a later visual polish task
+- Poll in `_Process` rather than subscribing to a StatusEffect event — simpler and consistent with how revive/kill labels already work; effect duration is short enough that frame polling is negligible
+**Next:** Play-test all five enemy types and the Berserker effect in-game
+**Tests added:** None (UI polling, no testable logic)
+
 ## 2026-04-25 — Enemy component architecture: EnemyHost + behavior/component nodes
 
 **Phase:** 2 (post-completion cleanup)

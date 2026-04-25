@@ -35,7 +35,7 @@ script = ExtResource("5_gravity")
 [node name="Behavior" type="Node" parent="."]
 script = ExtResource("6_behavior")
 RiderMaxHp = 3.0
-DinoMaxHp = 2.0
+DinoMaxHp = 8.0
 ChargeSpeed = 140.0
 ShootRange = 200.0
 FireRate = 2.0

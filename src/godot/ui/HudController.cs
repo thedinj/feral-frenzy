@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using FeralFrenzy.Godot.Autoloads;
+using FeralFrenzy.Godot.Characters;
 using FeralFrenzy.Godot.Constants;
 using FeralFrenzy.Godot.Enemies;
 using FeralFrenzy.Godot.World;
@@ -14,6 +16,7 @@ public partial class HudController : Control
     // Resolved via GetNodeOrNull in _Ready — [Export] Label wiring unreliable in hand-written .tscn
     private Label? _killLabel;
     private Label? _reviveLabel;
+    private Label? _berserkerLabel;
     private ProgressBar? _bossHpBar;
     private EnemyHost? _connectedBoss;
 
@@ -21,6 +24,7 @@ public partial class HudController : Control
     {
         _killLabel = GetNodeOrNull<Label>("KillLabel");
         _reviveLabel = GetNodeOrNull<Label>("ReviveLabel");
+        _berserkerLabel = GetNodeOrNull<Label>("BerserkerLabel");
         _bossHpBar = GetNodeOrNull<ProgressBar>("BossHpBar");
 
         _gameState = GetNode<GameStateManager>(AutoloadPaths.GameStateManager);
@@ -31,6 +35,11 @@ public partial class HudController : Control
         if (_reviveLabel is not null)
         {
             _reviveLabel.Visible = false;
+        }
+
+        if (_berserkerLabel is not null)
+        {
+            _berserkerLabel.Visible = false;
         }
 
         if (_bossHpBar is not null)
@@ -66,6 +75,25 @@ public partial class HudController : Control
                 float seconds = LevelController.Instance?.ReviveSecondsRemaining ?? 0f;
                 _reviveLabel.Text = $"REVIVE! {Mathf.Max(0f, seconds):F0}s";
             }
+        }
+
+        if (_berserkerLabel is not null)
+        {
+            bool anyBerserk = false;
+            IReadOnlyList<PlayerController>? players = LevelController.Instance?.GetPlayers();
+            if (players is not null)
+            {
+                foreach (PlayerController p in players)
+                {
+                    if (p.IsBerserkerActive)
+                    {
+                        anyBerserk = true;
+                        break;
+                    }
+                }
+            }
+
+            _berserkerLabel.Visible = anyBerserk;
         }
     }
 
