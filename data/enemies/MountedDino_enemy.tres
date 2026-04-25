@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="FFEnemyDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/godot/enemies/FFEnemyDefinition.cs" id="1_md_def"]
+
+[resource]
+script = ExtResource("1_md_def")
+EnemyKey = "enemy_mounted_dino"
+DisplayName = "Mounted Dino"
+ChapterKey = "chapter_cretaceous"
+DifficultyWeight = 0.25
+IsEliteVariant = false
+SceneKey = "scene_enemy_mounted_dino"
+BaseCountPerPlayer = 1
+MaxHp = 5.0
+HitStunSeconds = 0.15

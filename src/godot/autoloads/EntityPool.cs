@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using FeralFrenzy.Godot.Constants;
 using Godot;
 
 namespace FeralFrenzy.Godot.Autoloads;
@@ -15,7 +16,7 @@ public partial class EntityPool : Node
 
     public override void _Ready()
     {
-        _registry = GetNode<AssetRegistry>("/root/AssetRegistry");
+        _registry = GetNode<AssetRegistry>(AutoloadPaths.AssetRegistry);
     }
 
     public T Get<T>(string sceneKey)

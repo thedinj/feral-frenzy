@@ -1,7 +1,4 @@
-using FeralFrenzy.Godot.Autoloads;
 using FeralFrenzy.Godot.Characters;
-using FeralFrenzy.Godot.Constants;
-using FeralFrenzy.Godot.World;
 using Godot;
 
 namespace FeralFrenzy.Godot.Enemies;
@@ -21,15 +18,13 @@ public partial class GroundPatroller : EnemyController
     private float _fireCooldown;
     private PlayerController? _target;
 
-    public override void _PhysicsProcess(double delta)
+    protected override void OnReady()
     {
-        if (IsDead)
-        {
-            return;
-        }
+        AddToGroup("enemies");
+    }
 
-        base._PhysicsProcess(delta);
-
+    protected override void TickBehavior(float delta)
+    {
         _target = FindNearestPlayer();
 
         if (_target is not null)
@@ -37,46 +32,24 @@ public partial class GroundPatroller : EnemyController
             float dist = GlobalPosition.DistanceTo(_target.GlobalPosition);
             if (dist < _fireRange)
             {
-                TryFire((float)delta);
+                TryFire(delta);
+                return;
             }
-            else
+
+            float dir = Mathf.Sign(_target.GlobalPosition.X - GlobalPosition.X);
+            if (dir != 0f)
             {
-                ChaseTarget(_target);
+                _patrolDirection = dir;
             }
         }
-        else
-        {
-            Patrol();
-        }
+
+        MoveInPatrolDirection();
     }
 
-    protected override void OnReady()
-    {
-        AddToGroup("enemies");
-    }
-
-    private void ChaseTarget(PlayerController target)
-    {
-        float dir = Mathf.Sign(target.GlobalPosition.X - GlobalPosition.X);
-        if (dir != 0f)
-        {
-            _patrolDirection = dir;
-        }
-
-        Velocity = Velocity with { X = _patrolSpeed * _patrolDirection };
-        if (IsOnWall())
-        {
-            _patrolDirection *= -1f;
-        }
-    }
-
-    private void Patrol()
+    private void MoveInPatrolDirection()
     {
         Velocity = Velocity with { X = _patrolSpeed * _patrolDirection };
-        if (IsOnWall())
-        {
-            _patrolDirection *= -1f;
-        }
+        FlipDirectionOnWall(ref _patrolDirection);
     }
 
     private void TryFire(float delta)
@@ -90,52 +63,7 @@ public partial class GroundPatroller : EnemyController
         }
 
         _fireCooldown = _fireRate;
-        SpawnProjectileToward(_target!.GlobalPosition);
-    }
-
-    private void SpawnProjectileToward(Vector2 targetPos)
-    {
-        PackedScene? scene = GetNode<AssetRegistry>("/root/AssetRegistry")
-            .GetScene(AssetKeys.SceneProjectile);
-
-        if (scene is null)
-        {
-            return;
-        }
-
-        Weapons.ProjectileController projectile = scene.Instantiate<Weapons.ProjectileController>();
-        projectile.GlobalPosition = GlobalPosition;
-
-        Vector2 direction = (targetPos - GlobalPosition).Normalized();
-        projectile.Initialize(direction, speed: 180f, impact: 1f, collisionMask: 2u); // layer 2 = players
-
-        if (LevelController.Instance is not null)
-        {
-            LevelController.Instance.AddToEntities(projectile);
-        }
-    }
-
-    private PlayerController? FindNearestPlayer()
-    {
-        var players = GetTree().GetNodesInGroup("players");
-        PlayerController? nearest = null;
-        float nearestDist = float.MaxValue;
-
-        foreach (Node node in players)
-        {
-            if (node is not PlayerController player || player.IsDown || player.IsDead)
-            {
-                continue;
-            }
-
-            float dist = GlobalPosition.DistanceTo(player.GlobalPosition);
-            if (dist < nearestDist)
-            {
-                nearestDist = dist;
-                nearest = player;
-            }
-        }
-
-        return nearest;
+        Vector2 direction = (_target!.GlobalPosition - GlobalPosition).Normalized();
+        SpawnEnemyProjectile(direction, speed: 180f, impact: 1f);
     }
 }

@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="FFWeaponDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/godot/weapons/FFWeaponDefinition.cs" id="1_blade_def"]
+
+[resource]
+script = ExtResource("1_blade_def")
+WeaponKey = "weapon_spinning_blade"
+DisplayName = "Spinning Blade"
+Tier = 1
+IsChargeable = false
+IsExplosive = false
+EightDirectional = true
+FireRate = 0.6
+ProjectileSpeed = 320.0
+BaseImpact = 1.0
+ProjectileKey = "scene_spinning_blade_projectile"
+SpriteKey = ""
+SoundKey = ""

@@ -7,10 +7,24 @@ namespace FeralFrenzy.Godot.Autoloads;
 
 public partial class InputManager : Node
 {
-    // Phase 1: player 0 = keyboard, player 1 = gamepad device 0.
-    // Full 1–4 player routing: Phase 2.
-    private readonly HashSet<JoyButton> _prevPressedButtons = new HashSet<JoyButton>();
-    private readonly HashSet<JoyButton> _currPressedButtons = new HashSet<JoyButton>();
+    // Player 0 = keyboard (device -1)
+    // Players 1-3 = gamepads (device 0, 1, 2)
+    private const int MaxGamepadCount = 3;
+
+    private readonly Dictionary<int, HashSet<JoyButton>> _prevButtons =
+        new Dictionary<int, HashSet<JoyButton>>();
+
+    private readonly Dictionary<int, HashSet<JoyButton>> _currButtons =
+        new Dictionary<int, HashSet<JoyButton>>();
+
+    public override void _Ready()
+    {
+        for (int i = 0; i < MaxGamepadCount; i++)
+        {
+            _prevButtons[i] = new HashSet<JoyButton>();
+            _currButtons[i] = new HashSet<JoyButton>();
+        }
+    }
 
     public override void _Process(double delta)
     {
@@ -19,22 +33,34 @@ public partial class InputManager : Node
 
     public bool IsActionJustPressed(int playerIndex, string action)
     {
-        return playerIndex switch
+        if (playerIndex == InputConstants.KeyboardPlayerIndex)
         {
-            InputConstants.KeyboardPlayerIndex => Input.IsActionJustPressed(action),
-            InputConstants.GamepadPlayerIndex => IsGamepadActionJustPressed(action),
-            _ => false,
-        };
+            return Input.IsActionJustPressed(action);
+        }
+
+        int device = playerIndex - 1;
+        if (!Input.IsJoyKnown(device))
+        {
+            return false;
+        }
+
+        return IsGamepadActionJustPressed(device, action);
     }
 
     public bool IsActionPressed(int playerIndex, string action)
     {
-        return playerIndex switch
+        if (playerIndex == InputConstants.KeyboardPlayerIndex)
         {
-            InputConstants.KeyboardPlayerIndex => Input.IsActionPressed(action),
-            InputConstants.GamepadPlayerIndex => IsGamepadActionPressed(action),
-            _ => false,
-        };
+            return Input.IsActionPressed(action);
+        }
+
+        int device = playerIndex - 1;
+        if (!Input.IsJoyKnown(device))
+        {
+            return false;
+        }
+
+        return IsGamepadActionPressed(device, action);
     }
 
     public float GetAxis(int playerIndex, string negativeAction, string positiveAction)
@@ -44,20 +70,21 @@ public partial class InputManager : Node
             return Input.GetAxis(negativeAction, positiveAction);
         }
 
-        if (playerIndex == InputConstants.GamepadPlayerIndex)
+        int device = playerIndex - 1;
+        if (!Input.IsJoyKnown(device))
         {
-            float axis = Input.GetJoyAxis(InputConstants.GamepadDevice, JoyAxis.LeftX);
-            if (axis < -InputConstants.GamepadDeadZone)
-            {
-                return -1f;
-            }
-
-            if (axis > InputConstants.GamepadDeadZone)
-            {
-                return 1f;
-            }
-
             return 0f;
+        }
+
+        float axis = Input.GetJoyAxis(device, JoyAxis.LeftX);
+        if (axis < -InputConstants.GamepadDeadZone)
+        {
+            return -1f;
+        }
+
+        if (axis > InputConstants.GamepadDeadZone)
+        {
+            return 1f;
         }
 
         return 0f;
@@ -70,12 +97,14 @@ public partial class InputManager : Node
             return @event is InputEventKey key && key.Pressed && !key.Echo && key.IsAction(action);
         }
 
-        if (playerIndex == InputConstants.GamepadPlayerIndex
-            && @event is InputEventJoypadButton joy
-            && joy.Pressed
-            && joy.Device == InputConstants.GamepadDevice)
+        int device = playerIndex - 1;
+        if (!Input.IsJoyKnown(device))
         {
-            // R3 (right stick press) is an additional jump binding
+            return false;
+        }
+
+        if (@event is InputEventJoypadButton joy && joy.Pressed && joy.Device == device)
+        {
             if (action == InputActions.Jump && joy.ButtonIndex == JoyButton.RightStick)
             {
                 return true;
@@ -88,28 +117,67 @@ public partial class InputManager : Node
         return false;
     }
 
+    public bool IsAnyButtonJustPressedOnDevice(int device)
+    {
+        if (!_currButtons.TryGetValue(device, out HashSet<JoyButton>? curr))
+        {
+            return false;
+        }
+
+        if (!_prevButtons.TryGetValue(device, out HashSet<JoyButton>? prev))
+        {
+            return false;
+        }
+
+        foreach (JoyButton b in curr)
+        {
+            if (!prev.Contains(b))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public Vector2 GetLeftStickVector(int playerIndex)
     {
-        if (playerIndex != InputConstants.GamepadPlayerIndex)
+        if (playerIndex == InputConstants.KeyboardPlayerIndex)
         {
             return Vector2.Zero;
         }
 
-        return new Vector2(
-            Input.GetJoyAxis(InputConstants.GamepadDevice, JoyAxis.LeftX),
-            Input.GetJoyAxis(InputConstants.GamepadDevice, JoyAxis.LeftY));
+        int device = playerIndex - 1;
+        if (!Input.IsJoyKnown(device))
+        {
+            return Vector2.Zero;
+        }
+
+        var raw = new Vector2(
+            Input.GetJoyAxis(device, JoyAxis.LeftX),
+            Input.GetJoyAxis(device, JoyAxis.LeftY));
+
+        return raw.Length() < InputConstants.GamepadDeadZone ? Vector2.Zero : raw;
     }
 
     public Vector2 GetRightStickVector(int playerIndex)
     {
-        if (playerIndex != InputConstants.GamepadPlayerIndex)
+        if (playerIndex == InputConstants.KeyboardPlayerIndex)
         {
             return Vector2.Zero;
         }
 
-        return new Vector2(
-            Input.GetJoyAxis(InputConstants.GamepadDevice, JoyAxis.RightX),
-            Input.GetJoyAxis(InputConstants.GamepadDevice, JoyAxis.RightY));
+        int device = playerIndex - 1;
+        if (!Input.IsJoyKnown(device))
+        {
+            return Vector2.Zero;
+        }
+
+        var raw = new Vector2(
+            Input.GetJoyAxis(device, JoyAxis.RightX),
+            Input.GetJoyAxis(device, JoyAxis.RightY));
+
+        return raw.Length() < InputConstants.GamepadDeadZone ? Vector2.Zero : raw;
     }
 
     private static JoyButton? ActionToJoyButton(string action)
@@ -130,48 +198,60 @@ public partial class InputManager : Node
 
     private void UpdateGamepadButtonState()
     {
-        _prevPressedButtons.Clear();
-        foreach (JoyButton b in _currPressedButtons)
+        for (int device = 0; device < MaxGamepadCount; device++)
         {
-            _prevPressedButtons.Add(b);
-        }
-
-        _currPressedButtons.Clear();
-        foreach (JoyButton b in Enum.GetValues<JoyButton>())
-        {
-            if ((int)b >= 0 && Input.IsJoyButtonPressed(InputConstants.GamepadDevice, b))
+            _prevButtons[device].Clear();
+            foreach (JoyButton b in _currButtons[device])
             {
-                _currPressedButtons.Add(b);
+                _prevButtons[device].Add(b);
+            }
+
+            _currButtons[device].Clear();
+
+            if (!Input.IsJoyKnown(device))
+            {
+                continue;
+            }
+
+            foreach (JoyButton b in Enum.GetValues<JoyButton>())
+            {
+                if ((int)b >= 0 && Input.IsJoyButtonPressed(device, b))
+                {
+                    _currButtons[device].Add(b);
+                }
             }
         }
     }
 
-    private bool IsGamepadActionJustPressed(string action)
+    private bool IsGamepadActionJustPressed(int device, string action)
     {
         JoyButton? button = ActionToJoyButton(action);
-        if (button is not null)
+        if (button is null)
         {
-            return _currPressedButtons.Contains(button.Value)
-                && !_prevPressedButtons.Contains(button.Value);
+            return false;
         }
 
-        return false;
+        return _currButtons.TryGetValue(device, out HashSet<JoyButton>? curr)
+            && curr.Contains(button.Value)
+            && _prevButtons.TryGetValue(device, out HashSet<JoyButton>? prev)
+            && !prev.Contains(button.Value);
     }
 
-    private bool IsGamepadActionPressed(string action)
+    private bool IsGamepadActionPressed(int device, string action)
     {
         JoyButton? button = ActionToJoyButton(action);
         if (button is not null)
         {
-            return _currPressedButtons.Contains(button.Value);
+            return _currButtons.TryGetValue(device, out HashSet<JoyButton>? curr)
+                && curr.Contains(button.Value);
         }
 
         return action switch
         {
             InputActions.AimUp =>
-                Input.GetJoyAxis(InputConstants.GamepadDevice, JoyAxis.RightY) < -InputConstants.GamepadAimThreshold,
+                Input.GetJoyAxis(device, JoyAxis.RightY) < -InputConstants.GamepadAimThreshold,
             InputActions.AimDown =>
-                Input.GetJoyAxis(InputConstants.GamepadDevice, JoyAxis.RightY) > InputConstants.GamepadAimThreshold,
+                Input.GetJoyAxis(device, JoyAxis.RightY) > InputConstants.GamepadAimThreshold,
             _ => false,
         };
     }

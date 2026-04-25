@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://src/godot/ui/MainController.cs" id="1_main_ctrl"]
 [ext_resource type="PackedScene" path="res://scenes/world/Level.tscn" id="2_level"]
@@ -6,6 +6,8 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/LoadoutSelect.tscn" id="4_loadout"]
 [ext_resource type="PackedScene" path="res://scenes/ui/HUD.tscn" id="5_hud"]
 [ext_resource type="PackedScene" path="res://scenes/ui/RunSummary.tscn" id="6_summary"]
+[ext_resource type="PackedScene" path="res://scenes/ui/BossIntro.tscn" id="7_boss_intro"]
+[ext_resource type="PackedScene" path="res://scenes/ui/VillainExit.tscn" id="8_villain_exit"]
 
 [node name="Main" type="Control"]
 layout_mode = 3
@@ -34,3 +36,7 @@ layer = 2
 [node name="HUD" parent="CanvasLayer" instance=ExtResource("5_hud")]
 
 [node name="RunSummary" parent="CanvasLayer" instance=ExtResource("6_summary")]
+
+[node name="BossIntro" parent="CanvasLayer" instance=ExtResource("7_boss_intro")]
+
+[node name="VillainExit" parent="CanvasLayer" instance=ExtResource("8_villain_exit")]

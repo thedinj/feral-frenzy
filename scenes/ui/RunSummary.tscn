@@ -18,36 +18,45 @@ horizontal_alignment = 1
 
 [node name="KillsLabel" type="Label" parent="."]
 layout_mode = 1
-offset_left = 100.0
+offset_left = 80.0
 offset_top = 70.0
-offset_right = 220.0
+offset_right = 240.0
 offset_bottom = 85.0
-text = "Kills: 0"
+text = "Enemies Defeated: 0"
 horizontal_alignment = 1
 
 [node name="DeathsLabel" type="Label" parent="."]
 layout_mode = 1
-offset_left = 100.0
+offset_left = 80.0
 offset_top = 90.0
-offset_right = 220.0
+offset_right = 240.0
 offset_bottom = 105.0
-text = "Deaths: 0"
+text = "Times Wiped: 0"
 horizontal_alignment = 1
 
 [node name="TimeLabel" type="Label" parent="."]
 layout_mode = 1
-offset_left = 100.0
+offset_left = 80.0
 offset_top = 110.0
-offset_right = 220.0
+offset_right = 240.0
 offset_bottom = 125.0
 text = "Time: 0:00"
 horizontal_alignment = 1
 
-[node name="PromptLabel" type="Label" parent="."]
+[node name="PlayAgainLabel" type="Label" parent="."]
 layout_mode = 1
 offset_left = 80.0
 offset_top = 145.0
 offset_right = 240.0
 offset_bottom = 160.0
-text = "Press any key"
+text = "> Play Again"
+horizontal_alignment = 1
+
+[node name="QuitLabel" type="Label" parent="."]
+layout_mode = 1
+offset_left = 80.0
+offset_top = 160.0
+offset_right = 240.0
+offset_bottom = 175.0
+text = "  Quit"
 horizontal_alignment = 1

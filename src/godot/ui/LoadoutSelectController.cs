@@ -1,4 +1,3 @@
-using FeralFrenzy.Core.Data.Engine;
 using FeralFrenzy.Godot.Autoloads;
 using FeralFrenzy.Godot.Constants;
 using Godot;
@@ -7,82 +6,128 @@ namespace FeralFrenzy.Godot.UI;
 
 public partial class LoadoutSelectController : Control
 {
+    private const int MaxPlayers = 4;
     private static readonly string[] CharacterNames = { "BEAR", "HONEY BADGER" };
 
-    private int _p1Selection;
-    private int _p2Selection = 1;
-    private bool _p1Ready;
-    private bool _p2Ready;
+    private readonly int[] _selections = new int[MaxPlayers];
+    private readonly bool[] _joined = new bool[MaxPlayers];
+    private readonly bool[] _ready = new bool[MaxPlayers];
 
-    // Resolved via GetNodeOrNull in _Ready — [Export] node-type wiring unreliable in hand-written .tscn
-    private Label? _p1CharacterLabel;
-    private Label? _p2CharacterLabel;
-    private Label? _p1StatusLabel;
-    private Label? _p2StatusLabel;
+    // Resolved via GetNodeOrNull in _Ready
+    private readonly Label?[] _charLabels = new Label?[MaxPlayers];
+    private readonly Label?[] _statusLabels = new Label?[MaxPlayers];
 
-    // Initialized in _Ready — Godot does not call _Ready during construction
     private GameStateManager _gameState = null!;
+    private InputManager _input = null!;
 
     public override void _Ready()
     {
-        _gameState = GetNode<GameStateManager>("/root/GameStateManager");
+        _gameState = GetNode<GameStateManager>(AutoloadPaths.GameStateManager);
+        _input = GetNode<InputManager>(AutoloadPaths.InputManager);
         _gameState.StateChanged += OnStateChanged;
 
-        _p1CharacterLabel = GetNodeOrNull<Label>("P1Label");
-        _p2CharacterLabel = GetNodeOrNull<Label>("P2Label");
-        _p1StatusLabel = GetNodeOrNull<Label>("P1Status");
-        _p2StatusLabel = GetNodeOrNull<Label>("P2Status");
+        _charLabels[0] = GetNodeOrNull<Label>("P1Label");
+        _charLabels[1] = GetNodeOrNull<Label>("P2Label");
+        _charLabels[2] = GetNodeOrNull<Label>("P3Label");
+        _charLabels[3] = GetNodeOrNull<Label>("P4Label");
+        _statusLabels[0] = GetNodeOrNull<Label>("P1Status");
+        _statusLabels[1] = GetNodeOrNull<Label>("P2Status");
+        _statusLabels[2] = GetNodeOrNull<Label>("P3Status");
+        _statusLabels[3] = GetNodeOrNull<Label>("P4Status");
 
-        Visible = _gameState.Current == GameState.LoadoutSelect;
+        // Keyboard P1 is always joined
+        _joined[0] = true;
+        _selections[1] = 1;
+
+        Visible = _gameState.Current is LoadoutSelectState;
         RefreshDisplay();
+    }
+
+    public override void _ExitTree()
+    {
+        _gameState.StateChanged -= OnStateChanged;
     }
 
     public override void _Input(InputEvent @event)
     {
-        if (!Visible || _gameState.Current != GameState.LoadoutSelect)
+        if (!Visible || _gameState.Current is not LoadoutSelectState)
         {
             return;
         }
 
-        if (@event is InputEventKey key && key.Pressed && !key.Echo)
-        {
-            HandleP1KeyEvent(key);
-        }
-        else if (@event is InputEventJoypadButton joy && joy.Pressed
-            && joy.Device == InputConstants.GamepadDevice)
-        {
-            HandleP2JoyEvent(joy);
-        }
+        HandleKeyboardInput(@event);
+        HandleGamepadJoinInput(@event);
+        HandleGamepadPlayerInput(@event);
     }
 
-    private void HandleP1KeyEvent(InputEventKey key)
+    private void HandleKeyboardInput(InputEvent @event)
     {
-        if (_p1Ready)
+        if (@event is not InputEventKey key || !key.Pressed || key.Echo)
+        {
+            return;
+        }
+
+        if (_ready[0])
         {
             return;
         }
 
         if (key.IsAction(InputActions.MoveLeft))
         {
-            _p1Selection = (_p1Selection + CharacterNames.Length - 1) % CharacterNames.Length;
+            _selections[0] = (_selections[0] + CharacterNames.Length - 1) % CharacterNames.Length;
             RefreshDisplay();
         }
         else if (key.IsAction(InputActions.MoveRight))
         {
-            _p1Selection = (_p1Selection + 1) % CharacterNames.Length;
+            _selections[0] = (_selections[0] + 1) % CharacterNames.Length;
             RefreshDisplay();
         }
         else if (key.IsAction(InputActions.PrimaryAttack))
         {
-            _p1Ready = true;
+            _ready[0] = true;
             RefreshDisplay();
             TryStartGame();
         }
     }
 
-    private void HandleP2JoyEvent(InputEventJoypadButton joy)
+    private void HandleGamepadJoinInput(InputEvent @event)
     {
-        if (_p2Ready)
+        if (@event is not InputEventJoypadButton joy || !joy.Pressed)
+        {
+            return;
+        }
+
+        int playerIndex = joy.Device + 1;
+        if (playerIndex < 1 || playerIndex >= MaxPlayers)
+        {
+            return;
+        }
+
+        if (!_joined[playerIndex])
+        {
+            // Any button joins
+            _joined[playerIndex] = true;
+            RefreshDisplay();
+            return;
+        }
+
+        if (!_ready[playerIndex] && joy.ButtonIndex == JoyButton.Back)
+        {
+            // Select/Back unjoins before confirming
+            _joined[playerIndex] = false;
+            RefreshDisplay();
+        }
+    }
+
+    private void HandleGamepadPlayerInput(InputEvent @event)
+    {
+        if (@event is not InputEventJoypadButton joy || !joy.Pressed)
+        {
+            return;
+        }
+
+        int playerIndex = joy.Device + 1;
+        if (playerIndex < 1 || playerIndex >= MaxPlayers || !_joined[playerIndex] || _ready[playerIndex])
         {
             return;
         }
@@ -90,17 +135,17 @@ public partial class LoadoutSelectController : Control
         switch (joy.ButtonIndex)
         {
             case JoyButton.DpadLeft:
-                _p2Selection = (_p2Selection + CharacterNames.Length - 1) % CharacterNames.Length;
+                _selections[playerIndex] = (_selections[playerIndex] + CharacterNames.Length - 1) % CharacterNames.Length;
                 RefreshDisplay();
                 break;
 
             case JoyButton.DpadRight:
-                _p2Selection = (_p2Selection + 1) % CharacterNames.Length;
+                _selections[playerIndex] = (_selections[playerIndex] + 1) % CharacterNames.Length;
                 RefreshDisplay();
                 break;
 
             case JoyButton.X:
-                _p2Ready = true;
+                _ready[playerIndex] = true;
                 RefreshDisplay();
                 TryStartGame();
                 break;
@@ -109,54 +154,87 @@ public partial class LoadoutSelectController : Control
 
     private void TryStartGame()
     {
-        if (!_p1Ready)
+        if (!_ready[0])
         {
             return;
         }
 
-        // P2 joins by confirming — a connected gamepad alone does not force 2-player mode.
-        int playerCount = _p2Ready ? 2 : 1;
+        int playerCount = 0;
+        for (int i = 0; i < MaxPlayers; i++)
+        {
+            if (_joined[i] && _ready[i])
+            {
+                playerCount++;
+            }
+        }
 
-        _gameState.Player1CharacterIndex = _p1Selection;
-        _gameState.Player2CharacterIndex = _p2Selection;
+        _gameState.Player1CharacterIndex = _selections[0];
+        _gameState.Player2CharacterIndex = _selections[1];
         _gameState.ActivePlayerCount = playerCount;
 
-        _p1Ready = false;
-        _p2Ready = false;
+        for (int i = 0; i < MaxPlayers; i++)
+        {
+            _ready[i] = false;
+        }
 
-        _gameState.TransitionTo(GameState.Segment);
+        _gameState.TransitionTo<SegmentState>();
+        GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
     }
 
     private void RefreshDisplay()
     {
-        if (_p1CharacterLabel is not null)
+        for (int i = 0; i < MaxPlayers; i++)
         {
-            _p1CharacterLabel.Text = CharacterNames[_p1Selection];
-        }
+            if (_charLabels[i] is null && _statusLabels[i] is null)
+            {
+                continue;
+            }
 
-        if (_p2CharacterLabel is not null)
-        {
-            _p2CharacterLabel.Text = CharacterNames[_p2Selection];
-        }
+            string charText = _joined[i]
+                ? $"P{i + 1}: {CharacterNames[_selections[i]]}"
+                : $"P{i + 1}: ---";
 
-        if (_p1StatusLabel is not null)
-        {
-            _p1StatusLabel.Text = _p1Ready ? "READY" : "Z to confirm";
-        }
+            string statusText;
+            if (!_joined[i])
+            {
+                statusText = i == 0 ? "Z to confirm" : "Press any button";
+            }
+            else if (_ready[i])
+            {
+                statusText = "READY";
+            }
+            else
+            {
+                statusText = i == 0 ? "Z to confirm" : "(X) to confirm";
+            }
 
-        if (_p2StatusLabel is not null)
-        {
-            _p2StatusLabel.Text = _p2Ready ? "READY" : "(X) to confirm";
+            if (_charLabels[i] is Label charLabel)
+            {
+                charLabel.Text = charText;
+            }
+
+            if (_statusLabels[i] is Label statusLabel)
+            {
+                statusLabel.Text = statusText;
+            }
         }
     }
 
-    private void OnStateChanged(long from, long to)
+    private void OnStateChanged(GameStateNode from, GameStateNode to)
     {
-        Visible = (GameState)to == GameState.LoadoutSelect;
+        Visible = to is LoadoutSelectState;
+
         if (Visible)
         {
-            _p1Ready = false;
-            _p2Ready = false;
+            for (int i = 0; i < MaxPlayers; i++)
+            {
+                _ready[i] = false;
+                _joined[i] = false;
+                _selections[i] = i % CharacterNames.Length;
+            }
+
+            _joined[0] = true;
+
             RefreshDisplay();
         }
     }

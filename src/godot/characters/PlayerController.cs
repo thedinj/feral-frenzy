@@ -2,13 +2,13 @@ using System;
 using FeralFrenzy.Godot.Autoloads;
 using FeralFrenzy.Godot.Constants;
 using FeralFrenzy.Godot.Weapons;
+using FeralFrenzy.Godot.World;
 using Godot;
 
 namespace FeralFrenzy.Godot.Characters;
 
 public partial class PlayerController : CharacterBody2D
 {
-    private const float Gravity = 600f;
     private const float WallKickVelocityX = 200f;
     private const float SlideSpeedMultiplier = 1.4f;
     private const float SlideDuration = 0.35f;
@@ -23,7 +23,6 @@ public partial class PlayerController : CharacterBody2D
 
     // Initialized in _Ready — Godot does not call _Ready during construction
     private InputManager _input = null!;
-    private GameStateManager _gameState = null!;
 
     // Resolved via GetNode in _Ready — node-type exports unreliable in hand-written .tscn
     private AnimatedSprite2D? _sprite;
@@ -33,15 +32,20 @@ public partial class PlayerController : CharacterBody2D
     private bool _isSliding;
     private float _slideTimer;
     private float _jumpBufferTimer;
+    private float _invincibilityTimer;
     private bool _fireRequested;
     private bool _slideRequested;
     private bool _wasMoving;
     private int _jumpsRemaining;
     private WeaponController? _equippedWeapon;
     private AimDirection _aimDirection = AimDirection.Right;
+    private StatusEffectController _statusEffects = null!;
 
     public bool IsDown { get; private set; }
     public bool IsDead { get; private set; }
+    public int CurrentHp { get; private set; }
+
+    private bool IsInvincible => _invincibilityTimer > 0f;
 
     public override void _Ready()
     {
@@ -55,8 +59,12 @@ public partial class PlayerController : CharacterBody2D
         _collisionShape = GetNode<CollisionShape2D>(NodePaths.CollisionShape);
         _weaponMount = GetNodeOrNull<Node2D>(NodePaths.WeaponMount);
 
-        _input = GetNode<InputManager>("/root/InputManager");
-        _gameState = GetNode<GameStateManager>("/root/GameStateManager");
+        _input = GetNode<InputManager>(AutoloadPaths.InputManager);
+
+        CurrentHp = Definition.MaxHp;
+
+        _statusEffects = new StatusEffectController();
+        AddChild(_statusEffects);
 
         AddToGroup("players");
     }
@@ -97,6 +105,12 @@ public partial class PlayerController : CharacterBody2D
         float dt = (float)delta;
 
         TickTimers(dt);
+
+        if (_sprite is not null)
+        {
+            _sprite.Visible = !IsInvincible || (Engine.GetFramesDrawn() % 4 < 2);
+        }
+
         ApplyGravity(dt);
         HandleJump();
         HandleHorizontalMovement();
@@ -108,25 +122,63 @@ public partial class PlayerController : CharacterBody2D
         UpdateAnimation();
     }
 
-    public void TakeDamage()
+    public void TakeDamage(int amount = 1)
+    {
+        if (IsInvincible || IsDown || IsDead)
+        {
+            return;
+        }
+
+        int scaled = Mathf.Max(1, Mathf.RoundToInt(amount * _statusEffects.GetIncomingDamageMultiplier()));
+        CurrentHp -= scaled;
+        _invincibilityTimer = Definition!.InvincibilitySeconds;
+
+        if (CurrentHp <= 0)
+        {
+            GoDown();
+        }
+        else
+        {
+            PlayHitFlash();
+        }
+    }
+
+    public void ApplyStatusEffect(StatusEffect effect)
+    {
+        _statusEffects.Apply(effect);
+    }
+
+    public void RestoreHp(int amount)
     {
         if (IsDown || IsDead)
         {
             return;
         }
 
-        GoDown();
+        CurrentHp = Mathf.Min(CurrentHp + amount, Definition!.MaxHp);
     }
 
-    public void Revive()
+    public WeaponController? GetEquippedWeapon() => _equippedWeapon;
+
+    public void Revive(bool fullHeal = false)
     {
         IsDown = false;
+        CurrentHp = fullHeal ? Definition!.MaxHp : 1;
+        _invincibilityTimer = Definition!.InvincibilitySeconds;
+        _statusEffects.SetProcess(true);
         SetPhysicsProcess(true);
         _jumpsRemaining = MaxJumps;
         _isSliding = false;
         _slideRequested = false;
         _fireRequested = false;
         _collisionShape.Scale = Vector2.One;
+
+        if (_sprite is not null)
+        {
+            _sprite.Visible = true;
+            _sprite.Modulate = Colors.White;
+        }
+
         TryPlayAnimation(AnimationNames.Idle);
     }
 
@@ -164,14 +216,38 @@ public partial class PlayerController : CharacterBody2D
     {
         IsDown = true;
         Velocity = Vector2.Zero;
+        _statusEffects.SetProcess(false);
         SetPhysicsProcess(false);
+
+        if (_sprite is not null)
+        {
+            _sprite.Visible = true;
+            _sprite.Modulate = Colors.White;
+        }
+
         TryPlayAnimation(AnimationNames.Death);
-        _gameState.NotifyPlayerDown(PlayerIndex);
+        LevelController.Instance?.HandlePlayerDown(this);
+    }
+
+    private void PlayHitFlash()
+    {
+        if (_sprite is null)
+        {
+            return;
+        }
+
+        _sprite.Modulate = new Color(1f, 0.3f, 0.3f);
+        GetTree().CreateTimer(0.1f).Timeout += () => _sprite.Modulate = Colors.White;
     }
 
     private void TickTimers(float delta)
     {
         _jumpBufferTimer = Mathf.Max(0f, _jumpBufferTimer - delta);
+
+        if (_invincibilityTimer > 0f)
+        {
+            _invincibilityTimer -= delta;
+        }
 
         if (!_isSliding)
         {
@@ -190,7 +266,7 @@ public partial class PlayerController : CharacterBody2D
     {
         if (!IsOnFloor())
         {
-            Velocity = Velocity with { Y = Velocity.Y + (Gravity * delta) };
+            Velocity = Velocity with { Y = Velocity.Y + (PhysicsConstants.Gravity * delta) };
         }
     }
 
@@ -237,7 +313,13 @@ public partial class PlayerController : CharacterBody2D
         }
 
         float dir = _input.GetAxis(PlayerIndex, InputActions.MoveLeft, InputActions.MoveRight);
-        Velocity = Velocity with { X = dir * Definition!.MoveSpeed };
+
+        if (_statusEffects.AreControlsReversed())
+        {
+            dir = -dir;
+        }
+
+        Velocity = Velocity with { X = dir * Definition!.MoveSpeed * _statusEffects.GetSpeedMultiplier() };
 
         if (dir != 0f && _sprite is not null)
         {
@@ -267,7 +349,7 @@ public partial class PlayerController : CharacterBody2D
 
     private void HandleAiming()
     {
-        if (PlayerIndex == InputConstants.GamepadPlayerIndex)
+        if (PlayerIndex != InputConstants.KeyboardPlayerIndex)
         {
             // Right stick: aim in any of 8 directions and auto-fire.
             Vector2 rightStick = _input.GetRightStickVector(PlayerIndex);
@@ -275,15 +357,6 @@ public partial class PlayerController : CharacterBody2D
             {
                 _aimDirection = VectorToAimDirection(rightStick);
                 _fireRequested = true;
-                return;
-            }
-
-            // Left stick: aim in whatever direction the player is pushing.
-            // X button then fires in that direction.
-            Vector2 leftStick = _input.GetLeftStickVector(PlayerIndex);
-            if (leftStick.Length() > InputConstants.GamepadDeadZone)
-            {
-                _aimDirection = VectorToAimDirection(leftStick);
                 return;
             }
 
@@ -319,7 +392,16 @@ public partial class PlayerController : CharacterBody2D
             return;
         }
 
-        _equippedWeapon.Fire(_aimDirection, Definition!.WeaponDamageMultiplier);
+        if (PlayerIndex != InputConstants.KeyboardPlayerIndex)
+        {
+            Vector2 leftStick = _input.GetLeftStickVector(PlayerIndex);
+            if (leftStick.Length() > InputConstants.GamepadDeadZone)
+            {
+                _aimDirection = VectorToAimDirection(leftStick);
+            }
+        }
+
+        _equippedWeapon.Fire(_aimDirection, Definition!.WeaponDamageMultiplier * _statusEffects.GetDamageMultiplier());
     }
 
     private void UpdateAnimation()

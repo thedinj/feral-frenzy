@@ -1,5 +1,61 @@
 # Feral Frenzy — Dev Log
 
+## 2026-04-23 — PlayerRoster refactor, composable state machine, title music
+
+**Phase:** 2 (post-completion cleanup)
+**Built:**
+- **Composable state machine:** Replaced two ad-hoc timers (`_reviveTimer`, `_restartTimer`) in `GameStateManager` with a single `_autoTimer` driven by `IAutoTransition.GetDelay`/`SelectNext`. Each state with timer behavior implements `IAutoTransition` as a separate sealed class. `GameStateNode` base, `SimpleState` for no-behavior states, `ReviveWindowState`, `SegmentRestartState`, `LoadoutSelectState`, `SegmentState` as named classes.
+- **GameStateContext:** Mutable bag passed to state nodes on entry/exit. Tracks `KillCount`, `DeathCount`, `RunTimeSeconds`, `StateBeforeRevive`, `WipedFromBossFight`, `ActiveSegmentPayload`. Player collections removed — those belong to `LevelController`.
+- **PlayerRoster:** Plain C# class (no Godot deps) in `src/godot/world/`. Tracks total/down counts. `MarkDown()` returns `OneDown` or `AllDown`. `MarkRevived()`, `EliminateDownedPlayers()`, `Reset(n)`. Owned by `LevelController`.
+- **LevelController revive timer:** `_reviveWindowTimer` (10s) starts on `ReviveWindow` entry, stops on `SegmentRestart` or successful revive. `OnReviveWindowTimerExpired` calls `_roster.EliminateDownedPlayers()`; routes to `SegmentRestart` only if `AliveCount == 0`, otherwise calls `_gameState.ExitReviveWindow()`.
+- **PlayerController decoupled from GSM:** `GoDown()` now calls `LevelController.Instance?.HandlePlayerDown(this)` instead of `_gameState.NotifyPlayerDown(PlayerIndex)`. `_gameState` field and `GetNode<GameStateManager>` removed from `PlayerController`.
+- **Title music:** `title.mp3` plays on title screen, loops at `loopPoint` stored in `assets_manifest.json` metadata. `AssetRegistry.GetLoopPoint(key)` reads from parsed manifest. `AudioStreamPlayer.Play(fromPosition)` used for loop-point restart without modifying the resource.
+- **Debug print cleanup:** Removed all `[DBG ...]` prints from `PlaceholderBoss.cs` and `HudController.cs`.
+
+**Decisions:**
+- Revive timer stays in `LevelController`, not in `ReviveWindowState` via `IAutoTransition` — because the "should we restart or continue?" decision requires knowledge of living players, which belongs to `LevelController`/`PlayerRoster`, not the state machine context.
+- `ExitReviveWindow()` on `GameStateManager` reads `_ctx.StateBeforeRevive` and routes back — LevelController doesn't need to know which state to return to, just that the revive window is over.
+- `WipedFromBossFight` set in `SegmentRestartState.OnEnter` (when `from == BossFight`) so the state machine itself handles the boss-restart routing in `SelectNext` — LevelController reacts to the resulting `BossFight` state via `OnStateChanged`.
+
+**Deferred:** Nothing new.
+
+**Next:** Phase 3 — Real sprites, audio, chapter structure, generator integration.
+
+**Tests added:** None — all 10 existing tests still pass.
+
+---
+
+## 2026-04-22 — Phase 2 Complete
+
+**Phase:** 2
+**Built:**
+- **Task 1 — Enemy roster expansion:** MountedDino and PteroBomber scenes, .tres definitions, and controllers. MountedDino charges player (direction-aware), fires a burst when in range. PteroBomber flies patrol, drops a bomb projectile when above the player. LevelController spawns 1 extra GroundPatroller at (460, 155) when 2+ players active. EntityPool pre-warms 2 of each new enemy and 4 spinning blade projectiles.
+- **Task 2 — Spinning Blade pickup:** SpinningBladeProjectile (Area2D, circle r=6, layer 8/mask 4) and SpinningBladePickup (.tscn + WeaponPickup.cs) placed in Level.tscn at (220, 120). SpinningBlade_weapon.tres: FireRate=0.6, BaseImpact=1.0, EightDirectional=true.
+- **Task 3 — Power-up system:** FFPowerUpDefinition GlobalClass Resource (PowerUpKey, DisplayName, Type, EffectKey, SpriteKey). PowerUpEffects constants. Status effect system: abstract StatusEffect base with IDamageModifier/ISpeedModifier/IIncomingDamageModifier interfaces. RapidFireEffect, BerserkerEffect, HpRestoreEffect, ReverseControlsEffect, SlowEffect, MagnetEffect implementations. StatusEffectController node manages active effects per player, handles magnet radius pull toward pickups. PowerUp.cs rewired to dispatch via EffectKey switch. Three pickups placed in level: RapidFire (gold), ReverseControls (red), Berserker (purple).
+- **Task 4 — 4-player input routing:** InputManager fully rewritten — MaxGamepadCount=3, per-device button state tracking, IsAnyButtonJustPressedOnDevice for join detection. LoadoutSelectController supports 4 players — P1 keyboard always joined, P2–P4 join by pressing any button on an unassigned gamepad; DPad navigates character select; X confirms. LoadoutSelect.tscn gains P3Label, P3Status, P4Label, P4Status nodes.
+- **Task 5 — Placeholder boss fight:** BossRoomTrigger Area2D replaces ExitTrigger — on player entry spawns PlaceholderBoss from AssetRegistry, then transitions to BossIntro. BossIntroController: 2.5s title card then transitions to BossFight. PlaceholderBoss: three cycling attack patterns (Charge → Burst → Summon); dormant during BossIntro; 30 HP; emits HpChanged signal; on death transitions to VillainExit. VillainExitController: 2s hold then transitions to RunSummary. HudController connects to boss HpChanged signal and shows BossHpBar only during BossFight. GameStateManager updated: tracks _stateBeforeRevive so ReviveWindow correctly returns to BossFight (not always Segment); ReviveWindow → BossFight added to legal transitions; BossIntro/BossFight entry clears _downPlayers.
+- **Task 6 — RunSummary polish:** "Enemies Defeated: X", "Times Wiped: X", "Time: MM:SS" display. Two-option menu with cursor: "Play Again" → LoadoutSelect, "Quit" → Title. DPad/arrow key navigation, Enter/Space/Z/X/A/Start to confirm.
+
+**Decisions:**
+- `_stateBeforeRevive` saved in `TransitionTo()` BEFORE `Current` is updated — saving it in HandleStateEntry fires after Current is already set to ReviveWindow, which would always return ReviveWindow itself.
+- Boss remains dormant during BossIntro by checking `_gameState2.Current == GameState.BossFight` before every attack tick — boss is spawned before the title card but won't engage until state advances.
+- HudController uses group query + type-check (`is PlaceholderBoss boss`) rather than a typed reference — keeps it decoupled from boss identity, only connects the typed HpChanged signal once per BossFight state entry.
+- MagnetEffect radius/speed constants live in StatusEffectController (engine layer) rather than PowerUpEffects (content) — these are implementation details of the pull physics, not design content.
+- SA1204 (static before non-static) enforced by StyleCop — reorganized RunSummaryController to put static helpers before instance methods.
+
+**Deferred:**
+- Real character art for Croc and Hammerhead (Phase 3)
+- Audio/SFX pass (Phase 3)
+- Boss identity and variant attacks (Phase 3)
+- Character secondaries (Croc slide-hit, Honey Badger invincibility) (Phase 3)
+- Bear/Honey Badger size differential visual verification (needs real sprites)
+
+**Next:** Phase 3 — Real sprites, audio, chapter structure, generator integration.
+
+**Tests added:** None new — all 10 existing tests still pass.
+
+---
+
 ## 2026-04-22 — Phase 1 Complete
 
 **Phase:** 1

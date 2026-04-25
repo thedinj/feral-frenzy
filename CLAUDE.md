@@ -272,6 +272,28 @@ public record SegmentData(string SegmentId, SegmentType Type, ...);
 public partial class PlayerController : CharacterBody2D { }
 ```
 
+### Node References — GetNodeOrNull in _Ready is the Definitive Pattern
+
+**Discovered in Phase 1:** Godot 4's C# reflection strips leading underscores from property names when registering `[Export]` fields in hand-written `.tscn` files. This causes `[Export]` node wiring to silently fail — the field stays null at runtime with no editor warning.
+
+**The definitive pattern for all node references in hand-written .tscn controllers:**
+
+```csharp
+// CORRECT — reliable in all cases
+public override void _Ready()
+{
+    _sprite = GetNodeOrNull<AnimatedSprite2D>(NodePaths.AnimatedSprite)
+        ?? throw new InvalidOperationException($"{nameof(PlayerController)} '{Name}': AnimatedSprite2D not found.");
+    _collisionShape = GetNodeOrNull<CollisionShape2D>(NodePaths.CollisionShape)
+        ?? throw new InvalidOperationException($"{nameof(PlayerController)} '{Name}': CollisionShape2D not found.");
+}
+
+// AVOID for node references in hand-written .tscn files — silently fails with underscore-prefixed fields
+[Export] private AnimatedSprite2D? _sprite;
+```
+
+`[Export]` remains correct and preferred for non-node data exports (Resources, floats, strings, enums). It is only unreliable for node-type exports in hand-written `.tscn` files. Scene-editor-created `.tscn` files wire correctly — this issue only affects `.tscn` files written by hand or by Claude Code.
+
 ### Partial Classes for All Godot Nodes
 
 ```csharp
@@ -281,33 +303,6 @@ public partial class GameStateManager : Node { }
 
 // Forgetting partial = cryptic compile error. Don't forget partial.
 ```
-
-### Exports Over GetNode
-
-```csharp
-// PREFER: typed exports wired in the Godot editor
-[Export] private AnimatedSprite2D _sprite;
-[Export] private CollisionShape2D _collisionShape;
-
-// AVOID: string-based node lookup (use only when export is not possible)
-var sprite = GetNode<AnimatedSprite2D>(NodePaths.AnimatedSprite);
-```
-
-### Null Safety in _Ready
-
-All `[Export]` fields must be validated in `_Ready`:
-
-```csharp
-public override void _Ready()
-{
-    if (_sprite is null)
-        throw new InvalidOperationException($"{nameof(PlayerController)}: _sprite export is not assigned.");
-    if (_collisionShape is null)
-        throw new InvalidOperationException($"{nameof(PlayerController)}: _collisionShape export is not assigned.");
-}
-```
-
-This surfaces wiring mistakes at startup, not during gameplay.
 
 ### Signal Connections
 
@@ -330,6 +325,37 @@ _sprite.Connect("animation_finished", new Callable(this, nameof(OnAnimationFinis
 | Content JSON | `snake_case.json` | `chapter_cretaceous.json` |
 | Resource file | `PascalCase_descriptor.tres` | `Bear_character.tres` |
 | Test file | `ClassNameTests.cs` | `MacroValidatorTests.cs` |
+
+### StyleCop — Established Suppressions
+
+The following StyleCop rules are suppressed project-wide in `stylecop.json`. These are legitimate suppressions for Godot C# conventions and modern record syntax — do not remove them and do not add new suppressions without a comment.
+
+| Rule | Reason |
+|---|---|
+| SA1309 | Underscore-prefixed private fields are the Godot C# convention |
+| SA0001 | XML doc analysis not required for a game project |
+| SA1633 | File headers not required |
+| SA1313 | Record primary constructor parameters conflict with StyleCop naming |
+| SA1009 | Record `) :` syntax false positive |
+| SA1101 | `this.` prefix not required |
+| SA1516 | Blank line between all members conflicts with Godot node layout |
+
+Any new suppression must have a comment in the code explaining the Godot interop or syntax reason. Do not suppress analyzer warnings that represent real bugs.
+
+### Parallax API — Godot 4.3+
+
+`ParallaxBackground` and `ParallaxLayer` are **deprecated** in Godot 4.3. Use `Parallax2D` instead. `GodotParallaxBuilder` was updated in Phase 1 to use `Parallax2D`. Do not reintroduce the deprecated API.
+
+```csharp
+// CORRECT — Godot 4.3+
+var layer = new Parallax2D();
+layer.ScrollScale = new Vector2(def.ScrollSpeedX, def.ScrollSpeedY);
+layer.RepeatSize = new Vector2(def.RepeatX ? 320f : 0f, def.RepeatY ? 180f : 0f);
+
+// NEVER — deprecated
+var bg = new ParallaxBackground();
+var layer = new ParallaxLayer();
+```
 
 ---
 
@@ -375,22 +401,27 @@ Any line of engine code containing a Feral Frenzy-specific name is an architectu
 
 ### The Resolution Rule — Locked, Do Not Revisit
 
-**Base resolution: 320×180. This is final.**
+**Game render resolution: 320×180 (SubViewport). Native window: 1280×720. This is final.**
 
-Rationale: scales to 1080p at exactly 6×, 720p at exactly 4×, 4K at exactly 12×, Steam Deck (1280×800) at 4× letterboxed. All integer multiples — pixels stay perfectly square on all target displays. Alternatives (384×216, 426×240) break 720p integer scaling. The couch/large TV readability requirement is solved by art direction (high contrast silhouettes, saturated colors, identifiable shapes at thumbnail size) not by adding pixels.
+The architecture established in Phase 1 is:
+- The OS window renders at **1280×720 native** — UI is sharp at native resolution
+- The game world renders into a **SubViewport at 320×180** — pixel art stays crisp via nearest-neighbor filtering
+- A `SubViewportContainer` with `texture_filter = 1` (Nearest) bridges the two
+
+This means UI and game world render at different resolutions intentionally. UI elements are sharp and readable at couch distance. Pixel art sprites are rendered at 320×180 and scaled up 4× to fill the window.
 
 In Godot project settings:
 ```
-Display → Window → Viewport Width  = 320
-Display → Window → Viewport Height = 180
-Display → Window → Mode            = canvas_items
-Display → Window → Aspect          = keep
+Display → Window → Viewport Width  = 1280
+Display → Window → Viewport Height = 720
+SubViewport → Size                 = 320 × 180
+SubViewportContainer → texture_filter = Nearest (1)
 Rendering → Textures → Default Texture Filter = Nearest
 Rendering → 2D → Snap 2D Transforms to Pixel  = On
 Rendering → 2D → Snap 2D Vertices to Pixel    = On
 ```
 
-Do not change these settings. Do not add resolution options. Do not propose alternative base resolutions.
+Do not change these settings. Do not collapse the SubViewport. Do not propose alternative base resolutions.
 
 ### The Solvability Rule — Enforced Always
 
@@ -426,6 +457,42 @@ public RunData Generate(int seed, FFChapterDefinition[] chapters, int playerCoun
 State transitions go through `GameStateManager.TransitionTo()`. Always. No scene directly loads another scene. No node directly changes game state. The manager is the single source of truth.
 
 If you are writing code that changes what the game is doing without calling `TransitionTo`, you are bypassing the state machine. Stop and route through the manager.
+
+### The State Node Rule — Behavior Belongs in State Classes, Not the Manager
+
+**Established in Phase 2:** `GameStateManager` is a dispatcher, not a behavior container. All per-state behavior — timers, routing logic, context mutations — belongs in the state's `GameStateNode` subclass.
+
+**The structure:**
+- Each state is a sealed `GameStateNode` subclass with `OnEnter`/`OnExit` hooks
+- States that need a timed auto-transition implement `IAutoTransition` — `GetDelay` returns the delay, `SelectNext` returns where to go
+- `GameStateManager` owns one `_autoTimer` and fires `SelectNext` when it expires — no other timers in the manager
+- `GameStateContext` is a mutable bag passed to state nodes — it holds routing flags (`WipedFromBossFight`) and run-meta stats (`KillCount`, `DeathCount`, `RunTimeSeconds`) only
+
+**What does NOT belong in `GameStateContext`:**
+- Game-world tracking: which players are alive, player positions, entity counts
+- Anything owned by a scene node (`LevelController`, `PlayerRoster`, etc.)
+
+`GameStateContext` answers "where should the state machine route next?" and "what are the run stats?". `LevelController` answers "who is alive and where are they?". These are different questions and must not be conflated.
+
+```csharp
+// CORRECT — timer and routing logic inside the state class
+public sealed class SegmentRestartState : GameStateNode, IAutoTransition
+{
+    private const float RestartDelay = 1.5f;
+    public float GetDelay(StatePayload? payload) => RestartDelay;
+    public (Type Next, StatePayload? Payload)? SelectNext(GameStateContext ctx)
+    {
+        if (ctx.WipedFromBossFight) { ctx.WipedFromBossFight = false; return (typeof(BossFightState), null); }
+        ...
+    }
+}
+
+// NEVER — ad-hoc timer + routing logic in GameStateManager
+private Timer _restartTimer = null!;
+private void OnRestartTimerExpired() { TransitionTo<SegmentState>(); }
+```
+
+If you find yourself adding a `Timer` field to `GameStateManager`, stop — it belongs in a state class via `IAutoTransition`. If you find yourself adding a collection field to `GameStateContext` (a list, set, or dictionary), stop — it belongs in the appropriate scene system.
 
 ### The Asset Registry Rule
 
@@ -492,6 +559,72 @@ This pipeline is documented here so it does not need to be rediscovered. All gen
 
 Sprites live in `assets/sprites/`, registered in `data/assets_manifest.json`, accessed through `AssetRegistry`.
 
+### The Input Rule — Discrete Inputs Use _Input(), Not _PhysicsProcess()
+
+**Discovered in Phase 1:** Polling discrete inputs (`Jump`, `Slide`, `PrimaryAttack`) in `_PhysicsProcess()` drops inputs that occur between physics ticks. Use `_Input()` with a buffer flag instead.
+
+```csharp
+// CORRECT — set flag in _Input(), consume in _PhysicsProcess()
+private bool _jumpRequested;
+private float _jumpBufferTimer;
+private const float JumpBufferSeconds = 0.12f;
+
+public override void _Input(InputEvent @event)
+{
+    if (InputManager.IsActionJustPressedFromEvent(@event, PlayerIndex, InputActions.Jump))
+    {
+        _jumpRequested = true;
+        _jumpBufferTimer = JumpBufferSeconds;
+    }
+}
+
+public override void _PhysicsProcess(double delta)
+{
+    TickTimers((float)delta);
+    if (_jumpRequested && IsOnFloor()) { /* execute jump */ _jumpRequested = false; }
+    ...
+}
+
+// NEVER for discrete inputs — drops inputs between ticks
+if (Input.IsActionJustPressed(InputActions.Jump)) { ... }
+```
+
+### The Double Jump Rule
+
+All characters have `MaxJumps = 2` by default. This is a `PlayerController` constant, not a `FFCharacterDefinition` export — it applies equally to all characters. A character's `JumpArcMultiplier` applies to both the first and second jump.
+
+### The Gamepad Rule — Right Stick Autofire
+
+Gamepad player (player index 1) fires via two mechanisms:
+- **Right stick** — hold in any direction for continuous autofire in that direction (aim direction derived from `VectorToAimDirection` using atan2 + 45° sector rounding)
+- **X button** — fires once toward left-stick direction if pushed past dead zone, else fires in current facing direction
+
+This is the established gamepad feel. Do not change it without explicit instruction.
+
+`InputManager.GetRightStickVector(playerIndex)` and `InputManager.GetLeftStickVector(playerIndex)` return the stick vectors with dead zone applied. `VectorToAimDirection(Vector2)` converts to the nearest of 8 directions.
+
+### The GameStateManager Event Rule
+
+`GameStateManager.StateChanged` is a plain C# event, not a Godot `[Signal]`. It passes `GameStateNode` instances directly — no casting, no magic numbers.
+
+```csharp
+public event Action<GameStateNode, GameStateNode>? StateChanged;
+
+// Subscribing:
+_gameState.StateChanged += OnStateChanged;
+private void OnStateChanged(GameStateNode from, GameStateNode to)
+{
+    if (to is BossFightState) { ... }
+}
+
+// Transitioning:
+_gameState.TransitionTo<BossFightState>(payload);
+// or dynamically:
+_gameState.TransitionTo(typeof(BossFightState), payload);
+```
+
+There is no `GameState` enum. Each state is its own class. `Current` returns `GameStateNode` — check with `is` patterns, not equality comparisons.
+
 ---
 
 ## What Claude Code Should Never Do
@@ -511,11 +644,17 @@ Sprites live in `assets/sprites/`, registered in `data/assets_manifest.json`, ac
 - Put gameplay nodes outside the `SubViewport` in the main scene
 - Put UI nodes inside the `SubViewport` — UI always lives on the `CanvasLayer` above it
 - Flatten the `SubViewport` wrapping to "simplify" scene structure
-- Change the base resolution from 320×180 — this is locked
+- Change the SubViewport size from 320×180 or the window size from 1280×720
 - Propose alternative base resolutions
 - Hardcode parallax layer definitions in scenes — parallax is content-layer JSON
 - Write a Feral Frenzy-specific name (character, enemy, chapter) in engine-layer code
 - Defer entity pooling to a later phase — it is a Phase 1 architecture decision
+- Poll discrete inputs (`Jump`, `Slide`, `Fire`) in `_PhysicsProcess()` — use `_Input()` with buffer flags
+- Use `ParallaxBackground` or `ParallaxLayer` — both deprecated, use `Parallax2D`
+- Wire node-type exports via `[Export]` in hand-written `.tscn` files — use `GetNodeOrNull` in `_Ready()`
+- Create a `GameState` enum — states are classes, not enum values; `GameStateManager.Current` returns `GameStateNode`
+- Add a `Timer` field to `GameStateManager` for per-state behavior — use `IAutoTransition` on the state class instead
+- Put game-world tracking (player rosters, entity counts, positions) in `GameStateContext` — that belongs in scene systems like `LevelController`
 
 ---
 
@@ -531,9 +670,9 @@ Every Claude Code session starts with:
 
 End every session by:
 
-1. Running `dotnet build "Feral Frenzy.sln"` — must be clean
-2. Running `dotnet test FeralFrenzy.Tests/` — must pass
-3. Running `dotnet format "Feral Frenzy.sln" --verify-no-changes` — must be clean
+1. Running `dotnet build` — must be clean
+2. Running `dotnet test` — must pass
+3. Running `dotnet format --verify-no-changes` — must be clean
 4. Updating `DEVLOG.md` with what was built, what decisions were made, and what is next
 
 ---
@@ -565,7 +704,8 @@ This is the project memory. It is how future sessions pick up without relitigati
 | Where is the build order? | `docs/00_implementation_plan.md` |
 | Where is the data schema? | `docs/01_schema.md` |
 | Where is the state machine spec? | `docs/02_state_machine.md` |
-| What is the base resolution? | 320×180 — locked, never change |
+| What is the game world base resolution? | 320×180 inside SubViewport — locked |
+| What is the native window resolution? | 1280×720 — locked |
 | What is the peak entity target? | 20–30 simultaneous visible entities |
 | What character is the solvability reference? | Croc (`char_croc`) |
 | How many directions do weapons aim? | 8. Always. |
@@ -577,8 +717,14 @@ This is the project memory. It is how future sessions pick up without relitigati
 | Can core library import Godot? | Never |
 | How is randomness handled in generator? | Seeded `System.Random`, passed as parameter |
 | How do state transitions happen? | `GameStateManager.TransitionTo()` only |
-| What wraps the game world in the main scene? | `SubViewport` — never flatten this |
-| Where does UI live? | `CanvasLayer` above the `SubViewport` — never inside it |
+| What wraps the game world? | `SubViewportContainer` + `SubViewport` at 320×180 |
+| Where does UI live? | `CanvasLayer` above the `SubViewportContainer` — never inside SubViewport |
+| What is the main scene root node type? | `Control` (not `Node`) — `MainController` extends `Control` |
+| Which Parallax API? | `Parallax2D` (Godot 4.3+) — never `ParallaxBackground` |
+| How to reference nodes in hand-written .tscn? | `GetNodeOrNull<T>` in `_Ready()` — never `[Export]` for underscore-prefixed node fields |
 | Where do parallax definitions live? | Content-layer JSON per chapter — never hardcoded |
 | What is the sprite generation pipeline? | Gemini (sprites) → Grok (animation) |
-| What runs before every commit? | `dotnet build "Feral Frenzy.sln"` + `dotnet test FeralFrenzy.Tests/` + `dotnet format "Feral Frenzy.sln" --verify-no-changes` |
+| How many jumps do characters get? | 2 (MaxJumps=2, all characters) |
+| How are discrete inputs handled? | `_Input()` sets flag, `_PhysicsProcess()` consumes it |
+| How does GameStateManager notify state changes? | C# `event Action<GameStateNode, GameStateNode>` — check with `is` patterns |
+| What runs before every commit? | `dotnet build` + `dotnet test` + `dotnet format --verify-no-changes` |

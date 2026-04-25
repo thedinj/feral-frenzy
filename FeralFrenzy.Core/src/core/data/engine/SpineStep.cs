@@ -7,7 +7,7 @@ public record PlaySegmentStep(SegmentData Segment) : SpineStep;
 
 public record PlayBossStep(string VillainKey, string ChapterKey) : SpineStep;
 
-public record PlayGenreLevelStep(GameState GenreLevel) : SpineStep;
+public record PlayGenreLevelStep(string GenreLevelKey) : SpineStep;
 
 public record PlayCinematicStep(string CinematicKey) : SpineStep;
 

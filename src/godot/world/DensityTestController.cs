@@ -17,7 +17,7 @@ public partial class DensityTestController : Node2D
 
     public override void _Ready()
     {
-        _registry = GetNode<AssetRegistry>("/root/AssetRegistry");
+        _registry = GetNode<AssetRegistry>(AutoloadPaths.AssetRegistry);
         _spawnRoot = GetNodeOrNull<Node2D>("Entities");
         SpawnEntities();
     }

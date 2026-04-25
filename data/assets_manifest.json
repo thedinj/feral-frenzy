@@ -15,10 +15,16 @@
     "scene_char_hammerhead": "res://scenes/characters/Bear.tscn",
     "scene_char_honeybadger": "res://scenes/characters/HoneyBadger.tscn",
     "weapon_def_default_blaster": "res://data/weapons/DefaultBlaster_weapon.tres",
+    "weapon_def_spinning_blade": "res://data/weapons/SpinningBlade_weapon.tres",
     "scene_projectile": "res://scenes/weapons/Projectile.tscn",
+    "scene_spinning_blade_projectile": "res://scenes/weapons/SpinningBladeProjectile.tscn",
     "scene_weapon_pickup": "res://scenes/weapons/WeaponPickup.tscn",
     "scene_power_up": "res://scenes/world/PowerUp.tscn",
     "scene_enemy_ground_patroller": "res://scenes/enemies/GroundPatroller.tscn",
-    "scene_enemy_aerial_diver": "res://scenes/enemies/AerialDiver.tscn"
+    "scene_enemy_aerial_diver": "res://scenes/enemies/AerialDiver.tscn",
+    "scene_enemy_mounted_dino": "res://scenes/enemies/MountedDino.tscn",
+    "scene_enemy_ptero_bomber": "res://scenes/enemies/PteroBomber.tscn",
+    "scene_enemy_boss": "res://scenes/enemies/Boss.tscn",
+    "music_title": { "path": "res://assets/audio/title.mp3", "loopPoint": 10.0 }
   }
 }

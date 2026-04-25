@@ -70,20 +70,27 @@ public partial class GameStateManager : Node
     // Current state. Read-only externally.
     public GameState Current { get; private set; } = GameState.Title;
 
-    // The state we will return to after a reentrant state (e.g. Cinematic) completes.
-    private GameState _returnState;
+    // Mutable context bag passed to state nodes on entry/exit.
+    // Holds routing flags and run-meta stats — not game-world state.
+    private readonly GameStateContext _ctx = new GameStateContext();
 
-    // The active run spine. Null when not in a run.
-    private RunSpine _activeSpine;
+    // Each state is a GameStateNode subclass registered in BuildStates().
+    private readonly Dictionary<GameState, GameStateNode> _states;
+    private GameStateNode _currentNode;
 
-    // Emitted after every transition. UI and systems listen to this.
-    [Signal] public delegate void StateChangedEventHandler(GameState from, GameState to);
+    // Single auto-timer for all IAutoTransition states.
+    private Timer _autoTimer = null!;
+
+    // Emitted after every transition. long parameters for Godot Variant compatibility.
+    // Cast to GameState at the subscriber: (GameState)from, (GameState)to
+    [Signal] public delegate void StateChangedEventHandler(long from, long to);
 
     // The only way to change state.
-    public void TransitionTo(GameState next, StatePayload payload = null) { ... }
+    public void TransitionTo(GameState next, StatePayload? payload = null) { ... }
 
-    // Convenience: is the game currently in any run spine state?
-    public bool IsInRun => _activeSpine != null;
+    // Called by LevelController after a successful revive or timer expiry with survivors.
+    // Routes back to the state that was active before the ReviveWindow.
+    public void ExitReviveWindow() { ... }
 }
 ```
 
@@ -126,11 +133,13 @@ private static readonly Dictionary<GameState, HashSet<GameState>> LegalTransitio
         GameState.Segment         // spine advances to next segment (self-transition)
     },
     [GameState.ReviveWindow] = new() {
-        GameState.Segment,        // player revived — resume
+        GameState.Segment,        // player revived or expired-with-survivors — resume
+        GameState.BossFight,      // player revived or expired-with-survivors during boss fight
         GameState.SegmentRestart  // timer expired, all players now down
     },
     [GameState.SegmentRestart] = new() {
-        GameState.Segment         // restart animation complete — retry
+        GameState.Segment,        // restart animation complete — retry segment
+        GameState.BossFight       // wiped during boss fight — retry boss
     },
     [GameState.BossIntro] = new() {
         GameState.BossFight       // intro complete
@@ -488,8 +497,11 @@ The bible is explicit: death is not instant failure. This is the complete rulese
 - Living players can reach downed player and hold revive input
 - Revive time: 2 seconds of held input (not configurable per character — applies equally to all)
 - Enemies and hazards continue running — the game does not pause
-- If revived: `TransitionTo(Segment)` — downed player respawns with 1 HP
-- If countdown expires: `TransitionTo(SegmentRestart)`
+- If revived: `GameStateManager.ExitReviveWindow()` — returns to the state that was active before the revive window (Segment or BossFight). Downed player respawns with 1 HP.
+- If countdown expires with survivors: downed player is eliminated from the run; `ExitReviveWindow()` continues with remaining players
+- If countdown expires with no survivors: `TransitionTo(SegmentRestart)`
+
+**Implementation note:** The revive timer lives in `LevelController` (via `PlayerRoster`), not in the state machine. `ReviveWindowState.OnEnter` saves `StateBeforeRevive` so `ExitReviveWindow()` knows where to return. `LevelController` calls `ExitReviveWindow()` on success or on expiry-with-survivors; it calls `TransitionTo(SegmentRestart)` on expiry-with-no-survivors.
 
 **All players down simultaneously:**
 - `TransitionTo(SegmentRestart)` directly — no ReviveWindow

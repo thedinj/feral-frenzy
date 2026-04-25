@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using FeralFrenzy.Core.Data.Engine;
 using FeralFrenzy.Godot.Autoloads;
 using FeralFrenzy.Godot.Characters;
+using FeralFrenzy.Godot.Constants;
 using Godot;
 
 namespace FeralFrenzy.Godot.World;
@@ -20,9 +21,8 @@ public partial class ExitTrigger : Area2D
             return;
         }
 
-        GetNode<GameStateManager>("/root/GameStateManager")
-            .TransitionTo(
-                GameState.RunSummary,
+        GetNode<GameStateManager>(AutoloadPaths.GameStateManager)
+            .TransitionTo<RunSummaryState>(
                 new RunSummaryPayload(null, true, new List<string>()));
     }
 }

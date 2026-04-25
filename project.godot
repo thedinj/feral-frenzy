@@ -24,10 +24,6 @@ InputManager="*res://src/godot/autoloads/InputManager.cs"
 EntityPool="*res://src/godot/autoloads/EntityPool.cs"
 RunSpine="*res://src/godot/autoloads/RunSpine.cs"
 
-[debug]
-
-settings/stdout/print_fps=true
-
 [display]
 
 window/size/viewport_width=1280

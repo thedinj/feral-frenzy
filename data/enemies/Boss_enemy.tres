@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="FFEnemyDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/godot/enemies/FFEnemyDefinition.cs" id="1_boss_def"]
+
+[resource]
+script = ExtResource("1_boss_def")
+EnemyKey = "enemy_boss"
+DisplayName = "Villain Rex"
+ChapterKey = "chapter_cretaceous"
+DifficultyWeight = 1.0
+IsEliteVariant = false
+SceneKey = "scene_enemy_boss"
+BaseCountPerPlayer = 0
+MaxHp = 30.0
+HitStunSeconds = 0.1

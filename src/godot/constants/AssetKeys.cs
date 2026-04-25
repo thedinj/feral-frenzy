@@ -26,9 +26,19 @@ public static class AssetKeys
     // Power-ups
     public const string ScenePowerUp = "scene_power_up";
 
+    // Weapons — spinning blade
+    public const string WeaponDefSpinningBlade = "weapon_def_spinning_blade";
+    public const string SceneSpinningBladeProjectile = "scene_spinning_blade_projectile";
+
     // Enemies
     public const string SceneEnemyGroundPatroller = "scene_enemy_ground_patroller";
     public const string SceneEnemyAerialDiver = "scene_enemy_aerial_diver";
+    public const string SceneEnemyMountedDino = "scene_enemy_mounted_dino";
+    public const string SceneEnemyPteroBomber = "scene_enemy_ptero_bomber";
+    public const string SceneEnemyBoss = "scene_enemy_boss";
+
+    // Music
+    public const string MusicTitle = "music_title";
 
     // Parallax — Chapter 1 (The Cretaceous)
     public const string ParallaxCh1Sky = "parallax_ch1_sky";

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="FFPowerUpDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/godot/world/FFPowerUpDefinition.cs" id="1_pu_def"]
+
+[resource]
+script = ExtResource("1_pu_def")
+PowerUpKey = "powerup_rapid_fire"
+DisplayName = "Rapid Fire"
+Type = 0
+EffectKey = "effect_rapid_fire"
+SpriteKey = ""

@@ -1,5 +1,7 @@
-using FeralFrenzy.Core.Data.Engine;
 using FeralFrenzy.Godot.Autoloads;
+using FeralFrenzy.Godot.Constants;
+using FeralFrenzy.Godot.Enemies;
+using FeralFrenzy.Godot.World;
 using Godot;
 
 namespace FeralFrenzy.Godot.UI;
@@ -12,23 +14,35 @@ public partial class HudController : Control
     // Resolved via GetNodeOrNull in _Ready — [Export] Label wiring unreliable in hand-written .tscn
     private Label? _killLabel;
     private Label? _reviveLabel;
-
-    private float _reviveCountdown;
+    private ProgressBar? _bossHpBar;
+    private EnemyController? _connectedBoss;
 
     public override void _Ready()
     {
         _killLabel = GetNodeOrNull<Label>("KillLabel");
         _reviveLabel = GetNodeOrNull<Label>("ReviveLabel");
+        _bossHpBar = GetNodeOrNull<ProgressBar>("BossHpBar");
 
-        _gameState = GetNode<GameStateManager>("/root/GameStateManager");
+        _gameState = GetNode<GameStateManager>(AutoloadPaths.GameStateManager);
         _gameState.StateChanged += OnStateChanged;
 
-        Visible = _gameState.Current is GameState.Segment or GameState.ReviveWindow;
+        Visible = _gameState.Current is SegmentState;
 
         if (_reviveLabel is not null)
         {
             _reviveLabel.Visible = false;
         }
+
+        if (_bossHpBar is not null)
+        {
+            _bossHpBar.Visible = false;
+        }
+    }
+
+    public override void _ExitTree()
+    {
+        _gameState.StateChanged -= OnStateChanged;
+        DisconnectBossHpBar();
     }
 
     public override void _Process(double delta)
@@ -43,35 +57,71 @@ public partial class HudController : Control
             _killLabel.Text = $"Kills: {_gameState.KillCount}";
         }
 
-        if (_gameState.Current == GameState.ReviveWindow)
+        if (_reviveLabel is not null)
         {
-            _reviveCountdown -= (float)delta;
-            if (_reviveLabel is not null)
+            bool reviveActive = LevelController.Instance?.IsReviveActive ?? false;
+            _reviveLabel.Visible = reviveActive;
+            if (reviveActive)
             {
-                _reviveLabel.Text = $"REVIVE! {Mathf.Max(0f, _reviveCountdown):F0}s";
+                float seconds = LevelController.Instance?.ReviveSecondsRemaining ?? 0f;
+                _reviveLabel.Text = $"REVIVE! {Mathf.Max(0f, seconds):F0}s";
             }
         }
     }
 
-    private void OnStateChanged(long from, long to)
+    public void OnBossHpChanged(float current, float max)
     {
-        GameState newState = (GameState)to;
-        Visible = newState is GameState.Segment or GameState.ReviveWindow or GameState.SegmentRestart;
-
-        if (newState == GameState.ReviveWindow)
+        if (_bossHpBar is null)
         {
-            _reviveCountdown = 10f;
-            if (_reviveLabel is not null)
-            {
-                _reviveLabel.Visible = true;
-            }
+            return;
+        }
+
+        _bossHpBar.MaxValue = max;
+        _bossHpBar.Value = current;
+    }
+
+    private void OnStateChanged(GameStateNode from, GameStateNode to)
+    {
+        Visible = to is SegmentState or SegmentRestartState or BossFightState;
+
+        if (to is BossFightState)
+        {
+            ConnectBossHpBar();
         }
         else
         {
-            if (_reviveLabel is not null)
+            DisconnectBossHpBar();
+            if (_bossHpBar is not null)
             {
-                _reviveLabel.Visible = false;
+                _bossHpBar.Visible = false;
             }
         }
+    }
+
+    private void ConnectBossHpBar()
+    {
+        DisconnectBossHpBar();
+
+        EnemyController? boss = LevelController.Instance?.ActiveBoss;
+        if (boss is null || _bossHpBar is null)
+        {
+            return;
+        }
+
+        _bossHpBar.MaxValue = boss.Definition?.MaxHp ?? 30f;
+        _bossHpBar.Value = _bossHpBar.MaxValue;
+        _bossHpBar.Visible = true;
+        boss.HpChanged += OnBossHpChanged;
+        _connectedBoss = boss;
+    }
+
+    private void DisconnectBossHpBar()
+    {
+        if (_connectedBoss is not null && IsInstanceValid(_connectedBoss))
+        {
+            _connectedBoss.HpChanged -= OnBossHpChanged;
+        }
+
+        _connectedBoss = null;
     }
 }

@@ -1,10 +1,11 @@
 using FeralFrenzy.Godot.Characters;
+using FeralFrenzy.Godot.Constants;
 using FeralFrenzy.Godot.Enemies;
 using Godot;
 
 namespace FeralFrenzy.Godot.Weapons;
 
-public partial class ProjectileController : Area2D
+public partial class ProjectileController : Area2D, IPlayerProjectile
 {
     private const float MaxDistance = 800f;
 
@@ -12,18 +13,26 @@ public partial class ProjectileController : Area2D
     private float _speed;
     private float _impact;
     private float _travelledDistance;
+    private ProjectileOwner _owner;
 
     public override void _Ready()
     {
         BodyEntered += OnBodyEntered;
     }
 
-    public void Initialize(Vector2 direction, float speed, float impact, uint collisionMask)
+    public void InitializeFromWeapon(Vector2 direction, float speed, float impact, PlayerController? firedBy)
+        => Initialize(direction, speed, impact, ProjectileOwner.Player);
+
+    public void Initialize(Vector2 direction, float speed, float impact, ProjectileOwner owner)
     {
         _direction = direction;
         _speed = speed;
         _impact = impact;
-        CollisionMask = collisionMask;
+        _owner = owner;
+
+        CollisionMask = owner == ProjectileOwner.Player
+            ? LayerMasks.Enemies
+            : LayerMasks.Players;
     }
 
     public override void _PhysicsProcess(double delta)
@@ -40,15 +49,18 @@ public partial class ProjectileController : Area2D
 
     private void OnBodyEntered(Node body)
     {
-        if (body is EnemyController enemy)
+        switch (_owner)
         {
-            enemy.TakeDamage(_impact);
-            QueueFree();
+            case ProjectileOwner.Player when body is EnemyController enemy:
+                enemy.TakeDamage(_impact);
+                break;
+            case ProjectileOwner.Enemy when body is PlayerController player:
+                player.TakeDamage();
+                break;
+            default:
+                return;
         }
-        else if (body is PlayerController player)
-        {
-            player.TakeDamage();
-            QueueFree();
-        }
+
+        QueueFree();
     }
 }

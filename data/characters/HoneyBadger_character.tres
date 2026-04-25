@@ -16,3 +16,5 @@ WeaponDamageMultiplier = 1.0
 SecondaryAbilityKey = "ability_frenzy"
 SpriteFramesKey = "sprite_honeybadger"
 PortraitKey = "portrait_honeybadger"
+MaxHp = 3
+InvincibilitySeconds = 1.4

@@ -10,4 +10,6 @@ ChapterKey = "chapter_cretaceous"
 DifficultyWeight = 1.0
 IsEliteVariant = false
 SceneKey = "scene_enemy_ground_patroller"
-BaseCountPerPlayer = 3
+BaseCountPerPlayer = 2
+MaxHp = 3.0
+HitStunSeconds = 0.15

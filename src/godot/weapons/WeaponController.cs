@@ -1,5 +1,6 @@
 using System;
 using FeralFrenzy.Godot.Autoloads;
+using FeralFrenzy.Godot.Characters;
 using FeralFrenzy.Godot.Constants;
 using FeralFrenzy.Godot.World;
 using Godot;
@@ -77,30 +78,34 @@ public partial class WeaponController : Node2D
 
     private void SpawnProjectile(AimDirection direction, float damageMultiplier)
     {
-        PackedScene? scene = GetNode<AssetRegistry>("/root/AssetRegistry")
-            .GetScene(AssetKeys.SceneProjectile);
+        string projectileKey = !string.IsNullOrEmpty(Definition!.ProjectileKey)
+            ? Definition.ProjectileKey
+            : AssetKeys.SceneProjectile;
 
+        PackedScene? scene = GetNode<AssetRegistry>(AutoloadPaths.AssetRegistry).GetScene(projectileKey);
         if (scene is null)
         {
             return;
         }
 
-        ProjectileController projectile = scene.Instantiate<ProjectileController>();
-        projectile.GlobalPosition = GlobalPosition;
-        projectile.Initialize(
-            direction: AimDirectionToVector(direction),
-            speed: Definition!.ProjectileSpeed,
-            impact: Definition.BaseImpact * damageMultiplier,
-            collisionMask: 4u); // layer 3 = enemies
+        Vector2 dir = AimDirectionToVector(direction);
+        float impact = Definition.BaseImpact * damageMultiplier;
+        Area2D node = scene.Instantiate<Area2D>();
+        node.GlobalPosition = GlobalPosition;
 
-        // Add to level entities if LevelController is available; fallback to scene root
+        if (node is IPlayerProjectile proj)
+        {
+            PlayerController? firedBy = GetParent()?.GetParent() as PlayerController;
+            proj.InitializeFromWeapon(dir, Definition.ProjectileSpeed, impact, firedBy);
+        }
+
         if (LevelController.Instance is not null)
         {
-            LevelController.Instance.AddToEntities(projectile);
+            LevelController.Instance.AddToEntities(node);
         }
         else
         {
-            GetTree().Root.AddChild(projectile);
+            GetTree().Root.AddChild(node);
         }
     }
 }

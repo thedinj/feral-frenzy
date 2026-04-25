@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="FFEnemyDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/godot/enemies/FFEnemyDefinition.cs" id="1_pb_def"]
+
+[resource]
+script = ExtResource("1_pb_def")
+EnemyKey = "enemy_ptero_bomber"
+DisplayName = "Ptero Bomber"
+ChapterKey = "chapter_cretaceous"
+DifficultyWeight = 0.15
+IsEliteVariant = false
+SceneKey = "scene_enemy_ptero_bomber"
+BaseCountPerPlayer = 1
+MaxHp = 2.0
+HitStunSeconds = 0.10

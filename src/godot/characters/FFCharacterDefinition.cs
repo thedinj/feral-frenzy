@@ -41,4 +41,10 @@ public partial class FFCharacterDefinition : Resource
 
     [Export]
     public string PortraitKey { get; set; } = string.Empty;
+
+    [Export]
+    public int MaxHp { get; set; } = 3;
+
+    [Export]
+    public float InvincibilitySeconds { get; set; } = 1.2f;
 }

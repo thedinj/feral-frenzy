@@ -16,3 +16,5 @@ WeaponDamageMultiplier = 1.6
 SecondaryAbilityKey = "ability_roar"
 SpriteFramesKey = "sprite_bear"
 PortraitKey = "portrait_bear"
+MaxHp = 4
+InvincibilitySeconds = 1.0

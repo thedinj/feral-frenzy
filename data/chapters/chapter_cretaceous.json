@@ -5,7 +5,7 @@
   "defaultSightline": 0,
   "ceilingsPreferred": false,
   "baseHazardBudgetRatio": 0.3,
-  "enemyPool": ["enemy_ground_patroller", "enemy_aerial_diver"],
+  "enemyPool": ["enemy_ground_patroller", "enemy_aerial_diver", "enemy_mounted_dino", "enemy_ptero_bomber"],
   "hazardPool": [],
   "mechanicPool": [],
   "villainKey": "villain_rex",

@@ -10,4 +10,6 @@ ChapterKey = "chapter_cretaceous"
 DifficultyWeight = 1.5
 IsEliteVariant = false
 SceneKey = "scene_enemy_aerial_diver"
-BaseCountPerPlayer = 2
+BaseCountPerPlayer = 1
+MaxHp = 2.0
+HitStunSeconds = 0.10

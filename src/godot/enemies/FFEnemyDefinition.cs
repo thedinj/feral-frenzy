@@ -25,4 +25,10 @@ public partial class FFEnemyDefinition : Resource
 
     [Export]
     public int BaseCountPerPlayer { get; set; } = 2;
+
+    [Export]
+    public float MaxHp { get; set; } = 3f;
+
+    [Export]
+    public float HitStunSeconds { get; set; } = 0.15f;
 }

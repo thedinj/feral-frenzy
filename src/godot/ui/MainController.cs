@@ -1,5 +1,6 @@
 using FeralFrenzy.Core.Data.Engine;
 using FeralFrenzy.Godot.Autoloads;
+using FeralFrenzy.Godot.Constants;
 using Godot;
 
 namespace FeralFrenzy.Godot.UI;
@@ -11,7 +12,7 @@ public partial class MainController : Control
 
     public override void _Ready()
     {
-        _gameState = GetNode<GameStateManager>("/root/GameStateManager");
+        _gameState = GetNode<GameStateManager>(AutoloadPaths.GameStateManager);
 
         // Start in Title state — no transition needed, just ensure state is correct.
         // GameStateManager defaults to Title on construction.

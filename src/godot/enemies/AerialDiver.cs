@@ -6,7 +6,7 @@ namespace FeralFrenzy.Godot.Enemies;
 public partial class AerialDiver : EnemyController
 {
     private const float DiveDetectRangeX = 32f;
-    private const float GroundY = 152f; // approximate ground level
+    private const float GroundY = 152f;
 
     [Export]
     private float _patrolSpeed = 60f;
@@ -15,7 +15,7 @@ public partial class AerialDiver : EnemyController
     private float _diveSpeed = 200f;
 
     [Export]
-    private float _patrolHeight = 60f; // y offset above ground level
+    private float _patrolHeight = 60f;
 
     private enum DiveState
     {
@@ -28,37 +28,33 @@ public partial class AerialDiver : EnemyController
     private float _patrolDirection = 1f;
     private float _targetY;
 
+    protected override bool UseGravity => false;
+
+    protected override void OnHitStunned() => Velocity = Vector2.Zero;
+
     protected override void OnReady()
     {
         AddToGroup("enemies");
         _targetY = GlobalPosition.Y - _patrolHeight;
     }
 
-    public override void _PhysicsProcess(double delta)
+    protected override void TickBehavior(float delta)
     {
-        if (IsDead)
-        {
-            return;
-        }
-
-        // Aerial diver is not affected by gravity — it flies
         switch (_diveState)
         {
             case DiveState.Patrolling:
-                DoPatrol((float)delta);
+                DoPatrol(delta);
                 CheckForDive();
                 break;
 
             case DiveState.Diving:
-                DoDive((float)delta);
+                DoDive(delta);
                 break;
 
             case DiveState.Returning:
-                DoReturn((float)delta);
+                DoReturn(delta);
                 break;
         }
-
-        MoveAndSlide();
     }
 
     private void DoPatrol(float delta)
@@ -77,33 +73,8 @@ public partial class AerialDiver : EnemyController
             _patrolDirection *= -1f;
         }
 
-        // Maintain patrol height
         float heightError = _targetY - GlobalPosition.Y;
         Velocity = new Vector2(_patrolSpeed * _patrolDirection, heightError * 5f);
-    }
-
-    private PlayerController? FindNearestPlayer()
-    {
-        var players = GetTree().GetNodesInGroup("players");
-        PlayerController? nearest = null;
-        float nearestDist = float.MaxValue;
-
-        foreach (Node node in players)
-        {
-            if (node is not PlayerController player || player.IsDown || player.IsDead)
-            {
-                continue;
-            }
-
-            float dist = GlobalPosition.DistanceTo(player.GlobalPosition);
-            if (dist < nearestDist)
-            {
-                nearestDist = dist;
-                nearest = player;
-            }
-        }
-
-        return nearest;
     }
 
     private void CheckForDive()

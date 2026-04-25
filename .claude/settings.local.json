@@ -7,7 +7,9 @@
       "Read(//c/Users/thedinj/AppData/Roaming/NuGet/**)",
       "Bash(dotnet package *)",
       "Bash(dotnet test *)",
-      "Bash(dotnet format *)"
+      "Bash(dotnet format *)",
+      "Bash(rm \"D:/Users/thedinj/Programming/Games/feral-frenzy/FeralFrenzy.Core/src/core/data/engine/GameState.cs\")",
+      "Bash(rm \"D:/Users/thedinj/Programming/Games/feral-frenzy/src/godot/autoloads/states/SimpleState.cs\")"
     ]
   }
 }

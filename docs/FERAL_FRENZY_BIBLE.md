@@ -414,6 +414,35 @@ Chapter mechanics establish the vocabulary. Level mechanics are words in that vo
 **Tone:** Bright, explosive, liberating
 **Villain:** Baroness Cretacia — spectacular, inconclusive defeat. Maybe 60% certain she's gone. Exits screaming, laughing, promising revenge. Gerald may or may not escape with her.
 
+#### Known Level — THE SPORE FIELDS
+*Inspiration: Touch Fuzzy Get Dizzy, Yoshi's Island*
+*One Mechanic: Spore cloud disorientation*
+
+A Chapter 1 level built around a single environmental trigger that happens exactly twice. The level otherwise plays as a normal Cretaceous segment — open terrain, dinosaur enemies, standard combat and platforming.
+
+**Structure:**
+1. Level opens normally. A beat or two of standard Chapter 1 play to establish the feel.
+2. **First hit — early.** An unavoidable spore cloud. 10-15 seconds of full disorientation for the entire crew simultaneously. Screen warps, colors shift, controls go floaty and delayed. Enemies get disoriented too — their movement and firing drift unpredictably. Pure panic. Then it clears. Players laugh, recover, move on.
+3. **The middle.** The level plays completely normally. Combat, platforming, standard fare. Players forget about the spores. This forgetting is intentional and load-bearing.
+4. **Second hit — at the exit.** A larger spore cloud right before the level ends. Bigger visual effect, same floaty controls, enemies stumbling again. The crew scrambles through the exit still disoriented. The level ends at maximum chaos rather than resolution.
+
+**The co-op moment:** Four players going floaty simultaneously, trying to shoot enemies who are also stumbling, everyone screaming. The second hit at the exit means the level's final memory is chaos, not relief. Players will be talking about it before the next level loads.
+
+**Design rules:**
+- The spore clouds are environmental trigger volumes — they cannot be shot, killed, or avoided. Contact is mandatory.
+- Disorientation is a **global state** — all crew members affected simultaneously, no exceptions
+- Floaty/delayed controls means increased input lag and reduced movement friction. Controls are **not inverted**. Player agency is preserved — it just feels wrong.
+- Enemies enter a disoriented state: movement and firing gain random drift. They are not incapacitated. They are dangerous in a different way.
+- The effect lasts 10-15 seconds then clears completely. No gradual fade — the snap back is part of the relief.
+- The second cloud is visually larger and more dramatic than the first. Players see it coming and cannot stop it. That anticipation is the joke.
+
+**Technical primitives required:**
+- Global disorientation state flag (engine layer signal)
+- Screen-space shader: warp + color shift (SubViewport already established — straightforward)
+- Input modifier: configurable lag and friction multiplier applied to all players
+- Enemy AI: disoriented behavior state with random drift perturbation
+- Trigger volume: environmental contact → fires disorientation signal
+
 ### CHAPTER 2 — DEAD STATION
 *"Cramped corridors. Zombie aliens. Splash damage becomes your enemy."*
 
@@ -570,31 +599,117 @@ Difficulty is **scripted**, not dynamic. The difficulty curve is baked into the 
 
 ### Art Style — The Target
 
-**16-bit pixel art. Cartoony but not soft. Crisp and confident.**
+**16-bit pixel art. Cartoony but not soft. Crisp and confident. Designed for a large TV.**
 
-The two reference points that bracket the target:
+This game is built for a living room television. Playing on a 17-inch monitor means squinting. That is a known tradeoff, not a design failure. All scale, density, and readability decisions assume a large screen viewed from a couch.
 
-**Jurassic Park 2: The Chaos Continues (SNES, 1994)** — too dark, too moody, too drab. The graphics are detailed and technically competent but visually heavy. Desaturated palette, gritty atmosphere, realistically proportioned sprites that read as serious and murky at a distance. This is the ceiling on grimness. We are not this game.
+The two reference points that bracket the art style:
 
-**Joe & Mac: Caveman Ninja (SNES, 1991)** — great color energy, bright saturated backgrounds that pop, characters with genuine personality. But the sprites are chunky and primitive, the proportions squat and rubbery, and the overall feel is a little too goofy and soft. The color instincts are right; the execution is too loose. This is the floor on cartoon sloppiness. We are better than this game.
+**Jurassic Park 2: The Chaos Continues (SNES, 1994)** — too dark, too moody, too drab. The graphics are detailed and technically competent but visually heavy. Desaturated palette, gritty atmosphere, sprites that read as murky at a distance. This is the ceiling on grimness. We are not this game.
 
-**The target lives between them:** Joe & Mac's color confidence and cartoon personality, with JP2's level of detail and visual seriousness — but crisper, more intentional, and more modern-feeling than either. Think late-era SNES quality: the kind of pixel art that looks designed rather than drawn by committee. Characters read instantly at a distance. Colors are saturated but purposeful. Nothing is muddy. Nothing is soft.
+**Joe & Mac: Caveman Ninja (SNES, 1991)** — great color energy, bright saturated backgrounds that pop, characters with genuine personality. But the sprites are chunky and primitive, the proportions squat and rubbery, the overall feel too soft. The color instincts are right; the execution is too loose. This is the floor on cartoon sloppiness. We are better than this game.
+
+**The target lives between them:** Joe & Mac's color confidence and cartoon personality, with JP2's level of detail and visual seriousness — but crisper, more intentional, and more modern-feeling than either. Late-era SNES quality: pixel art that looks designed rather than drawn by committee. Colors are saturated but purposeful. Nothing is muddy. Nothing is soft.
+
+### Cinematic Scale — The Braveheart Panorama
+
+The art style is 16-bit SNES. The **sense of scale** is something else entirely.
+
+The visual inspiration for scope, density, and camera framing is cinematic and panoramic — think the wide battlefield shots of Braveheart, or the Super Mario Bros Z Flash series by Alvin Earthworm: vast horizontal canvases packed with activity across multiple vertical layers, where the chaos reads as epic rather than cluttered because everything has room to breathe.
+
+This is what a large TV enables that a small monitor cannot. The screen is a wide stage. Dozens of things happen on it simultaneously. The camera is pulled far enough back that players feel like they are watching something cinematic while also being inside it.
+
+**The key qualities to borrow:**
+- Sprites are small relative to the total canvas — this creates the epic scale feeling
+- Multiple vertical layers of activity — enemies above, below, and level with the player simultaneously
+- Parallax backgrounds give depth and grandeur without adding visual noise
+- Strong silhouettes ensure everything reads at viewing distance
+- The horizon always suggests more world beyond the screen edges
 
 ### Pixel Art Philosophy
-Small pixels on a big screen. The pixel art is very small relative to the play area — giving the game a surprising density of content that reads as crisp rather than cluttered. Because the camera is wide and the sprites are small, every character and enemy must have an immediately readable silhouette. This is a hard constraint: if you can't identify what something is from its outline alone, the sprite is not finished.
+Small 16-bit sprites on a large cinematic canvas. The pixel art is small relative to the play area — giving the game a surprising density of content that reads as crisp rather than cluttered. Because the camera is wide and the sprites are small, every character and enemy must have an immediately readable silhouette. This is a hard constraint: if you can't identify what something is from its outline alone, the sprite is not finished.
 
-The small scale is a feature, not a limitation. It allows far more content on screen than a typical pixel art game without feeling crowded — but only if the art is clean enough to survive being small.
+The small scale is a feature, not a limitation. It allows 20-30 entities visible simultaneously without crowding — but only if the art is clean enough to survive being small on a large screen.
+
+### Parallax
+Backgrounds use parallax scrolling to create depth and reinforce the panoramic scale. This is not decoration — it makes the wide canvas feel vast rather than flat. Parallax layers are defined per chapter in the content layer.
 
 ### Character Art Direction
-Cartoony proportions — slightly larger heads, expressive poses, readable at thumbnail size. Not chibi, not realistic. Think the confident cartoon style of late-era Mega Man or early Metal Slug: characters that are clearly stylized but never feel accidental. Personality over realism. Every character should be identifiable from their silhouette alone.
+Cartoony proportions — slightly larger heads, expressive poses, readable at thumbnail size. Not chibi, not realistic. Think the confident cartoon style of late-era Mega Man or early Metal Slug: characters that are clearly stylized but never feel accidental. Personality over realism. Every character identifiable from silhouette alone.
 
 ### Camera
-Wide angle, distant, always shared. All players on one screen at all times. Co-op players must stay roughly together — the camera does not split. This is both a technical constraint and a design intention: you are in this together.
+Wide angle, distant, always shared. All players on one screen at all times. The panoramic width is what makes the large entity count work — players have room to fight without crowding each other. Co-op players must stay roughly together — the camera does not split. This is both a technical constraint and a design intention: you are in this together.
 
 ### Chapter Visual Identity
-- **Chapter 1** — saturated, bright, outdoor. Greens, oranges, blue skies. Dinosaur bone structures, jungle canopy, volcanic rock. Joe & Mac's color energy applied with more precision.
-- **Chapter 2** — darker and more industrial than Chapter 1, but never as drab as JP2. Greys and sickly greens with deliberate accent lighting. Metal corridors, flickering lights, alien detail. Moody but readable.
-- **Chapter 3** — dramatic contrast, volcanic palette. Deep reds, black stone, orange lava glow. The most visually intense chapter. Epic scale.
+- **Chapter 1** — saturated, bright, outdoor. Greens, oranges, blue skies. Dinosaur bone structures, jungle canopy, volcanic rock. Joe & Mac's color energy applied with more precision. Deep parallax sky layers — clouds, distant mountains, pterodactyls on the horizon.
+- **Chapter 2** — darker and more industrial than Chapter 1, but never as drab as JP2. Greys and sickly greens with deliberate accent lighting. Metal corridors, flickering lights, alien detail. Parallax through viewport windows showing distant space.
+- **Chapter 3** — dramatic contrast, volcanic palette. Deep reds, black stone, orange lava glow. The most visually intense chapter. Epic scale. Parallax of distant volcanic eruptions and falling ash.
+
+### Screen-Space Shader Effects
+
+All shader effects run on the SubViewport (established Phase 1, never restructured). Effects are **aesthetic only** — they never obscure gameplay-critical information. They are event-driven and occasional — rare enough that every trigger lands with full impact.
+
+The design rule: **snappy for combat moments, cinematic for transitions.** An explosion shockwave hits in a fraction of a second. A chapter transition lingers.
+
+---
+
+**1. CHROMATIC ABERRATION BURST**
+*Trigger: Boss entrance*
+
+The screen's RGB channels split apart — red, green, blue layers briefly offset in different directions — then snap back together in under half a second. Reads as reality tearing. Signals immediately that something significant has arrived without any UI or text. One of the cheapest shaders to implement. One of the highest impact-per-effort ratios in the entire effects list.
+
+- Duration: ~0.4 seconds
+- Snappy
+- Fires on every boss entrance, no exceptions
+
+---
+
+**2. SHOCKWAVE STACK**
+*Trigger: Massive explosions and chain reactions*
+
+Multiple overlapping radial ripple waves emanating from the explosion origin, each slightly offset in time. The screen looks like a pond hit in several places simultaneously. Each successive explosion in a chain pulses the bloom intensity fractionally higher, then decays. The screen gets progressively brighter as the chain builds.
+
+The ripple shader primitive already exists from Bear's Roar and the spore effect — this is that primitive fired multiple times in quick succession.
+
+- Duration: ~0.8 seconds per wave, overlapping
+- Snappy per-explosion, cumulative effect is cinematic
+- Scales with chain length — longer chains produce more waves
+
+---
+
+**3. VIGNETTE FLASH**
+*Trigger: Power-up pickup*
+
+On pickup, the screen edges briefly pulse the power-up's color inward then fade. Subtle but readable at couch distance. Communicates the pickup registered without interrupting the chaos on screen. For the small percentage of negative power-ups, a brief color inversion flash — white going dark rather than bright — immediately signals "that was wrong" without words.
+
+- Duration: ~0.3 seconds
+- Snappy
+- Color is power-up specific (positive = warm pulse, negative = cold inversion)
+
+---
+
+**4. BEAR'S ROAR — DESATURATION SNAP**
+*Trigger: Bear secondary ability*
+
+A large radial ripple emanates from Bear's position, tinted warm orange. Simultaneously the entire screen desaturates to near-greyscale for the ripple's duration, making the shockwave ring the only thing with color on screen. Color snaps back as the ripple reaches screen edge.
+
+In co-op this effect turns a single bear ability into a cinematic moment the entire couch experiences. The desaturation is what makes it feel massive rather than merely loud.
+
+- Duration: ~0.6 seconds
+- Snappy entry, brief cinematic hold, snappy snap-back
+- The desaturation is the effect — the ripple is the delivery mechanism
+
+---
+
+**5. HEAT HAZE ON EXPLOSIONS**
+*Trigger: Large explosions, persists briefly at explosion site*
+
+A localized screen-space distortion field at the explosion site that lingers for one to two seconds after the blast clears. Repurposes the warp shader already built for the spore effect. Makes large explosions feel physically hot — the air itself is disturbed. Applies to the largest explosions only, not every shot.
+
+- Duration: 1-2 seconds, fading
+- Slightly cinematic — lingers longer than the other effects
+- Localized to explosion origin, not full-screen
+- Pairs naturally with the shockwave stack on chain reactions
 
 ---
 
@@ -680,6 +795,7 @@ The less defined, the better. The player's imagination fills in something worse 
 - **Asset Pipeline:** Fully data-driven from day one. No hardcoded asset references. Every visual element has a slot that accepts custom assets.
 - **Generator Output:** Semantic JSON, human-readable, Claude-legible
 - **Solo Developer:** Every architectural decision should reduce future workload, not increase it
+- **Main scene uses SubViewport wrapping** — game world renders inside a SubViewport for screen-space shader support (ripple, hit flash, lava glow, silhouette mechanic). UI on a separate CanvasLayer above. Established Phase 1, never restructured.
 - **Framework First:** The engine is built as a reusable framework. This game is its first tenant, not its only one.
 
 ---
