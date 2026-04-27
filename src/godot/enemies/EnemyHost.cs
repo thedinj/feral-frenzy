@@ -1,14 +1,19 @@
 using System;
+using System.Collections.Generic;
+using FeralFrenzy.Core.Animation;
+using FeralFrenzy.Core.Data.Content;
+using FeralFrenzy.Godot.Animation;
 using FeralFrenzy.Godot.Autoloads;
 using FeralFrenzy.Godot.Characters;
 using FeralFrenzy.Godot.Constants;
+using FeralFrenzy.Godot.Core;
 using FeralFrenzy.Godot.Enemies.Behaviors;
 using FeralFrenzy.Godot.Enemies.Components;
 using Godot;
 
 namespace FeralFrenzy.Godot.Enemies;
 
-public partial class EnemyHost : CharacterBody2D
+public partial class EnemyHost : GameEntity
 {
     [Export]
     public FFEnemyDefinition? Definition { get; set; }
@@ -30,6 +35,9 @@ public partial class EnemyHost : CharacterBody2D
     public bool IsDead { get; private set; }
 
     public bool IsHitStunned => _hitStun.IsActive;
+
+    // Set by behavior nodes when attacking; read by animation input closure to drive Attack state.
+    public bool IsAttacking { get; set; }
 
     // assigned in _Ready()
     private FFEnemyDefinition _definition = null!;
@@ -72,27 +80,70 @@ public partial class EnemyHost : CharacterBody2D
         _death = deathNode as IDeathBehavior;
 
         AddToGroup("enemies");
+
+        // Animation — Tier 1 (AnimatedSprite2D). SpriteFrames may be null until art arrives;
+        // Play() calls are guarded by HasAnimation() in AnimationDriver.Tick().
+        AnimatedSprite2D? sprite = GetNodeOrNull<AnimatedSprite2D>(NodePaths.AnimatedSprite);
+        if (sprite is not null)
+        {
+            ConfigureAnimation<FFSimpleEnemyState>()
+                .WithSprite(sprite)
+                .WithRules(
+                    defaultState: FFSimpleEnemyState.Idle,
+                    rules: new List<AnimationRule<FFSimpleEnemyState>>
+                    {
+                        new AnimationRule<FFSimpleEnemyState>((_, i) => i.IsDead, FFSimpleEnemyState.Death),
+                        new AnimationRule<FFSimpleEnemyState>((_, i) => i.TookHit, FFSimpleEnemyState.Hit),
+                        new AnimationRule<FFSimpleEnemyState>((_, i) => i.IsAttacking, FFSimpleEnemyState.Attack),
+                        new AnimationRule<FFSimpleEnemyState>((_, i) => i.IsMoving, FFSimpleEnemyState.Walk),
+                    })
+                .WithOneShots(new List<FFSimpleEnemyState>
+                {
+                    FFSimpleEnemyState.Attack,
+                    FFSimpleEnemyState.Hit,
+                    FFSimpleEnemyState.Death,
+                })
+                .WithClips(new Dictionary<FFSimpleEnemyState, string>
+                {
+                    [FFSimpleEnemyState.Idle] = AnimationNames.Idle,
+                    [FFSimpleEnemyState.Walk] = AnimationNames.Walk,
+                    [FFSimpleEnemyState.Attack] = AnimationNames.Attack,
+                    [FFSimpleEnemyState.Hit] = AnimationNames.Hit,
+                    [FFSimpleEnemyState.Death] = AnimationNames.Death,
+                })
+                .WithInput(() => new AnimationInput(
+                    IsMoving: Mathf.Abs(Velocity.X) > 0.1f,
+                    IsOnFloor: IsOnFloor(),
+                    IsOnWall: IsOnWall(),
+                    IsJumping: false,
+                    IsSliding: false,
+                    IsAttacking: IsAttacking,
+                    IsDead: IsDead,
+                    TookHit: IsHitStunned,
+                    VelocityY: Velocity.Y,
+                    VelocityX: Velocity.X))
+                .Build();
+        }
     }
 
-    public sealed override void _PhysicsProcess(double delta)
+    protected override void OnPhysicsProcess(float delta)
     {
         if (IsDead)
         {
             return;
         }
 
-        float f = (float)delta;
         if (_invincibilityTimer > 0f)
         {
-            _invincibilityTimer -= f;
+            _invincibilityTimer -= delta;
         }
 
-        _gravity.Apply(this, f);
-        _hitStun.Tick(f);
+        _gravity.Apply(this, delta);
+        _hitStun.Tick(delta);
 
         if (!IsHitStunned)
         {
-            _tick.Tick(this, f);
+            _tick.Tick(this, delta);
         }
         else
         {
@@ -133,6 +184,7 @@ public partial class EnemyHost : CharacterBody2D
 
     public PlayerController? FindNearestPlayer()
     {
+        // Use var to avoid Godot.Collections vs FeralFrenzy.Godot namespace collision.
         var players = GetTree().GetNodesInGroup("players");
         PlayerController? nearest = null;
         float nearestDist = float.MaxValue;

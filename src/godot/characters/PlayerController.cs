@@ -1,13 +1,18 @@
 using System;
+using System.Collections.Generic;
+using FeralFrenzy.Core.Animation;
+using FeralFrenzy.Core.Data.Content;
+using FeralFrenzy.Godot.Animation;
 using FeralFrenzy.Godot.Autoloads;
 using FeralFrenzy.Godot.Constants;
+using FeralFrenzy.Godot.Core;
 using FeralFrenzy.Godot.Weapons;
 using FeralFrenzy.Godot.World;
 using Godot;
 
 namespace FeralFrenzy.Godot.Characters;
 
-public partial class PlayerController : CharacterBody2D
+public partial class PlayerController : GameEntity
 {
     private const int MaxJumps = 2;
 
@@ -25,22 +30,22 @@ public partial class PlayerController : CharacterBody2D
 
     // assigned in _Ready()
     private FFCharacterDefinition _definition = null!;
-
-    // Initialized in _Ready — Godot does not call _Ready during construction
     private InputManager _input = null!;
-
-    // Resolved via GetNode in _Ready — node-type exports unreliable in hand-written .tscn
-    private AnimatedSprite2D? _sprite;
     private CollisionShape2D _collisionShape = null!;
-    private Node2D? _weaponMount;
 
+    // Resolved via GetNodeOrNull in _Ready — nullable, may be absent until scenes are updated.
+    private Node2D? _weaponMount;
+    private Sprite2D? _bodySprite;
+
+    private bool _facingLeft;
     private bool _isSliding;
     private float _slideTimer;
     private float _jumpBufferTimer;
     private float _invincibilityTimer;
     private bool _fireRequested;
     private bool _slideRequested;
-    private bool _wasMoving;
+    private bool _jumpExecutedThisFrame;
+    private bool _tookHitThisFrame;
     private int _jumpsRemaining;
     private WeaponController? _equippedWeapon;
     private AimDirection _aimDirection = AimDirection.Right;
@@ -50,7 +55,9 @@ public partial class PlayerController : CharacterBody2D
     private StatusEffectController _statusEffects = null!;
 
     public bool IsDown { get; private set; }
+
     public bool IsDead { get; private set; }
+
     public int CurrentHp { get; private set; }
 
     private bool IsInvincible => _invincibilityTimer > 0f;
@@ -61,9 +68,9 @@ public partial class PlayerController : CharacterBody2D
             ?? throw new InvalidOperationException(
                 $"{nameof(PlayerController)} '{Name}': Definition not assigned.");
 
-        _sprite = GetNodeOrNull<AnimatedSprite2D>(NodePaths.AnimatedSprite);
         _collisionShape = GetNode<CollisionShape2D>(NodePaths.CollisionShape);
         _weaponMount = GetNodeOrNull<Node2D>(NodePaths.WeaponMount);
+        _bodySprite = GetNodeOrNull<Sprite2D>(NodePaths.BodySprite);
 
         _input = GetNode<InputManager>(AutoloadPaths.InputManager);
 
@@ -73,11 +80,63 @@ public partial class PlayerController : CharacterBody2D
         AddChild(_statusEffects);
 
         AddToGroup("players");
+
+        // Animation — Tier 3 (AnimationPlayer). Clips are hand-keyed by the developer.
+        // AnimationPlayer may be null until Bear.tscn / HoneyBadger.tscn are updated.
+        AnimationPlayer? animPlayer = GetNodeOrNull<AnimationPlayer>(NodePaths.AnimationPlayer);
+        if (animPlayer is not null)
+        {
+            ConfigureAnimation<FFPlayerAnimationState>()
+                .WithAnimationPlayer(animPlayer)
+                .WithRules(
+                    defaultState: FFPlayerAnimationState.Idle,
+                    rules: new List<AnimationRule<FFPlayerAnimationState>>
+                    {
+                        new AnimationRule<FFPlayerAnimationState>((_, i) => i.IsDead, FFPlayerAnimationState.Death),
+                        new AnimationRule<FFPlayerAnimationState>((_, i) => i.TookHit, FFPlayerAnimationState.Hit),
+                        new AnimationRule<FFPlayerAnimationState>((_, i) => i.IsJumping, FFPlayerAnimationState.Jump),
+                        new AnimationRule<FFPlayerAnimationState>((_, i) => i.IsSliding, FFPlayerAnimationState.Slide),
+                        new AnimationRule<FFPlayerAnimationState>((_, i) => !i.IsOnFloor && i.VelocityY > 0f, FFPlayerAnimationState.Fall),
+                        new AnimationRule<FFPlayerAnimationState>((c, i) => c == FFPlayerAnimationState.Walk && i.IsMoving, FFPlayerAnimationState.Walk),
+                        new AnimationRule<FFPlayerAnimationState>((c, i) => c == FFPlayerAnimationState.WalkStart && i.IsMoving, FFPlayerAnimationState.Walk),
+                        new AnimationRule<FFPlayerAnimationState>((_, i) => i.IsMoving, FFPlayerAnimationState.WalkStart),
+                    })
+                .WithOneShots(new List<FFPlayerAnimationState>
+                {
+                    FFPlayerAnimationState.WalkStart,
+                    FFPlayerAnimationState.Slide,
+                    FFPlayerAnimationState.Hit,
+                    FFPlayerAnimationState.Death,
+                })
+                .WithClips(new Dictionary<FFPlayerAnimationState, string>
+                {
+                    [FFPlayerAnimationState.Idle] = AnimationNames.Idle,
+                    [FFPlayerAnimationState.WalkStart] = AnimationNames.WalkStart,
+                    [FFPlayerAnimationState.Walk] = AnimationNames.Walk,
+                    [FFPlayerAnimationState.Jump] = AnimationNames.Jump,
+                    [FFPlayerAnimationState.Fall] = AnimationNames.Fall,
+                    [FFPlayerAnimationState.Slide] = AnimationNames.Slide,
+                    [FFPlayerAnimationState.Death] = AnimationNames.Death,
+                    [FFPlayerAnimationState.Hit] = AnimationNames.Hit,
+                })
+                .WithInput(() => new AnimationInput(
+                    IsMoving: Mathf.Abs(Velocity.X) > 0.1f,
+                    IsOnFloor: IsOnFloor(),
+                    IsOnWall: IsOnWall(),
+                    IsJumping: _jumpExecutedThisFrame,
+                    IsSliding: _isSliding,
+                    IsAttacking: false,
+                    IsDead: IsDead || IsDown,
+                    TookHit: _tookHitThisFrame,
+                    VelocityY: Velocity.Y,
+                    VelocityX: Velocity.X))
+                .Build();
+        }
     }
 
     // Discrete inputs (jump, slide, fire) are captured here so no press is ever
     // missed between physics ticks. Continuous inputs (move, aim) are polled in
-    // _PhysicsProcess where per-frame state is what matters.
+    // OnPhysicsProcess where per-frame state is what matters.
     public override void _Input(InputEvent @event)
     {
         if (IsDown || IsDead)
@@ -101,23 +160,25 @@ public partial class PlayerController : CharacterBody2D
         }
     }
 
-    public override void _PhysicsProcess(double delta)
+    protected override void OnPhysicsProcess(float delta)
     {
         if (IsDown || IsDead)
         {
             return;
         }
 
-        float dt = (float)delta;
+        // Reset per-frame animation flags before game logic runs.
+        _jumpExecutedThisFrame = false;
+        _tookHitThisFrame = false;
 
-        TickTimers(dt);
+        TickTimers(delta);
 
-        if (_sprite is not null)
+        if (_bodySprite is not null)
         {
-            _sprite.Visible = !IsInvincible || (Engine.GetFramesDrawn() % 4 < 2);
+            _bodySprite.Visible = !IsInvincible || (Engine.GetFramesDrawn() % 4 < 2);
         }
 
-        ApplyGravity(dt);
+        ApplyGravity(delta);
         HandleJump();
         HandleHorizontalMovement();
         HandleSlide();
@@ -125,7 +186,7 @@ public partial class PlayerController : CharacterBody2D
         HandleFiring();
 
         MoveAndSlide();
-        UpdateAnimation();
+        UpdateArmAim();
     }
 
     public void TakeDamage(int amount = 1)
@@ -138,6 +199,7 @@ public partial class PlayerController : CharacterBody2D
         int scaled = Mathf.Max(1, Mathf.RoundToInt(amount * _statusEffects.GetIncomingDamageMultiplier()));
         CurrentHp -= scaled;
         _invincibilityTimer = _definition.InvincibilitySeconds;
+        _tookHitThisFrame = true;
 
         if (CurrentHp <= 0)
         {
@@ -181,13 +243,11 @@ public partial class PlayerController : CharacterBody2D
         _fireRequested = false;
         _collisionShape.Scale = Vector2.One;
 
-        if (_sprite is not null)
+        if (_bodySprite is not null)
         {
-            _sprite.Visible = true;
-            _sprite.Modulate = Colors.White;
+            _bodySprite.Visible = true;
+            _bodySprite.Modulate = Colors.White;
         }
-
-        TryPlayAnimation(AnimationNames.Idle);
     }
 
     public void EquipWeapon(WeaponController weapon)
@@ -241,25 +301,24 @@ public partial class PlayerController : CharacterBody2D
         _statusEffects.SetProcess(false);
         SetPhysicsProcess(false);
 
-        if (_sprite is not null)
+        if (_bodySprite is not null)
         {
-            _sprite.Visible = true;
-            _sprite.Modulate = Colors.White;
+            _bodySprite.Visible = true;
+            _bodySprite.Modulate = Colors.White;
         }
 
-        TryPlayAnimation(AnimationNames.Death);
         EmitSignal(SignalName.WentDown);
     }
 
     private void PlayHitFlash()
     {
-        if (_sprite is null)
+        if (_bodySprite is null)
         {
             return;
         }
 
-        _sprite.Modulate = new Color(1f, 0.3f, 0.3f);
-        GetTree().CreateTimer(0.1f).Timeout += () => _sprite.Modulate = Colors.White;
+        _bodySprite.Modulate = new Color(1f, 0.3f, 0.3f);
+        GetTree().CreateTimer(0.1f).Timeout += () => _bodySprite.Modulate = Colors.White;
     }
 
     private void TickTimers(float delta)
@@ -310,6 +369,7 @@ public partial class PlayerController : CharacterBody2D
             Velocity = Velocity with { Y = _definition.JumpVelocity * _definition.JumpArcMultiplier };
             _jumpsRemaining = MaxJumps - 1;
             _jumpBufferTimer = 0f;
+            _jumpExecutedThisFrame = true;
         }
         else if (IsOnWall())
         {
@@ -319,12 +379,14 @@ public partial class PlayerController : CharacterBody2D
                 _definition.JumpVelocity * _definition.JumpArcMultiplier);
             _jumpsRemaining = MaxJumps - 1;
             _jumpBufferTimer = 0f;
+            _jumpExecutedThisFrame = true;
         }
         else if (_jumpsRemaining > 0)
         {
             Velocity = Velocity with { Y = _definition.JumpVelocity * _definition.JumpArcMultiplier };
             _jumpsRemaining--;
             _jumpBufferTimer = 0f;
+            _jumpExecutedThisFrame = true;
         }
     }
 
@@ -344,9 +406,13 @@ public partial class PlayerController : CharacterBody2D
 
         Velocity = Velocity with { X = dir * _definition.MoveSpeed * _statusEffects.GetSpeedMultiplier() };
 
-        if (dir != 0f && _sprite is not null)
+        if (dir != 0f)
         {
-            _sprite.FlipH = dir < 0f;
+            _facingLeft = dir < 0f;
+            if (_bodySprite is not null)
+            {
+                _bodySprite.FlipH = _facingLeft;
+            }
         }
     }
 
@@ -363,7 +429,7 @@ public partial class PlayerController : CharacterBody2D
         _isSliding = true;
         _slideTimer = _definition.SlideDuration;
 
-        float dir = _sprite?.FlipH ?? false ? -1f : 1f;
+        float dir = _facingLeft ? -1f : 1f;
         Velocity = Velocity with { X = dir * _definition.MoveSpeed * _definition.SlideSpeedMultiplier };
 
         // Shrink collision shape to allow gap traversal — the solvability equaliser
@@ -385,7 +451,7 @@ public partial class PlayerController : CharacterBody2D
 
             // No stick input — clear raw aim and fall back to face direction.
             _rawAimVector = null;
-            _aimDirection = _sprite?.FlipH ?? false ? AimDirection.Left : AimDirection.Right;
+            _aimDirection = _facingLeft ? AimDirection.Left : AimDirection.Right;
             return;
         }
 
@@ -393,9 +459,8 @@ public partial class PlayerController : CharacterBody2D
         _rawAimVector = null;
         bool up = _input.IsActionPressed(PlayerIndex, InputActions.AimUp);
         bool down = _input.IsActionPressed(PlayerIndex, InputActions.AimDown);
-        bool facingLeft = _sprite?.FlipH ?? false;
 
-        _aimDirection = (up, down, facingLeft) switch
+        _aimDirection = (up, down, _facingLeft) switch
         {
             (true, false, false) => AimDirection.UpRight,
             (true, false, true) => AimDirection.UpLeft,
@@ -442,45 +507,40 @@ public partial class PlayerController : CharacterBody2D
         _equippedWeapon.Fire(_aimDirection, damage);
     }
 
-    private void UpdateAnimation()
+    private void UpdateArmAim()
     {
-        if (_isSliding)
+        // Applies facing-direction rotation to arm/weapon sprites on top of
+        // whatever AnimationPlayer has set. Noop until art arrives.
+        Sprite2D? armSprite = GetNodeOrNull<Sprite2D>(NodePaths.ArmSprite);
+        Sprite2D? weaponSprite = GetNodeOrNull<Sprite2D>(NodePaths.WeaponSprite);
+
+        if (armSprite is null && weaponSprite is null)
         {
-            TryPlayAnimation(AnimationNames.Slide);
             return;
         }
 
-        if (!IsOnFloor())
+        // Aim direction determines the rotation applied to arm/weapon sprites.
+        float rotationRad = _aimDirection switch
         {
-            TryPlayAnimation(Velocity.Y < 0f ? AnimationNames.Jump : AnimationNames.Fall);
-            return;
+            AimDirection.Right => 0f,
+            AimDirection.UpRight => -Mathf.Pi / 4f,
+            AimDirection.Up => -Mathf.Pi / 2f,
+            AimDirection.UpLeft => -3f * Mathf.Pi / 4f,
+            AimDirection.Left => Mathf.Pi,
+            AimDirection.DownLeft => 3f * Mathf.Pi / 4f,
+            AimDirection.Down => Mathf.Pi / 2f,
+            AimDirection.DownRight => Mathf.Pi / 4f,
+            _ => 0f,
+        };
+
+        if (armSprite is not null)
+        {
+            armSprite.Rotation = rotationRad;
         }
 
-        bool isMoving = Mathf.Abs(Velocity.X) > 0.1f;
-        if (isMoving)
+        if (weaponSprite is not null)
         {
-            if (!_wasMoving)
-            {
-                TryPlayAnimation(AnimationNames.WalkStart);
-            }
-            else if (_sprite?.Animation == AnimationNames.WalkStart && !_sprite.IsPlaying())
-            {
-                TryPlayAnimation(AnimationNames.Walk);
-            }
-        }
-        else
-        {
-            TryPlayAnimation(AnimationNames.Idle);
-        }
-
-        _wasMoving = isMoving;
-    }
-
-    private void TryPlayAnimation(string animName)
-    {
-        if (_sprite?.SpriteFrames is not null && _sprite.SpriteFrames.HasAnimation(animName))
-        {
-            _sprite.Play(animName);
+            weaponSprite.Rotation = rotationRad;
         }
     }
 }

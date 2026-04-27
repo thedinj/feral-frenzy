@@ -1,0 +1,24 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://src/godot/debug/HitboxDebugController.cs" id="1_debug_ctrl"]
+
+[sub_resource type="WorldBoundaryShape2D" id="WorldBoundaryShape2D_floor"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_debug"]
+font_size = 14
+
+[node name="HitboxDebugLevel" type="Node2D"]
+script = ExtResource("1_debug_ctrl")
+
+[node name="DebugLabel" type="Label" parent="."]
+anchors_preset = 0
+offset_left = 8.0
+offset_top = 8.0
+label_settings = SubResource("LabelSettings_debug")
+text = "Loading..."
+
+[node name="Floor" type="StaticBody2D" parent="."]
+position = Vector2(160, 170)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Floor"]
+shape = SubResource("WorldBoundaryShape2D_floor")

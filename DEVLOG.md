@@ -1,5 +1,46 @@
 # Feral Frenzy — Dev Log
 
+## 2026-04-26 — Phase 2.5 complete: animation architecture + art integration scaffolding
+
+**Phase:** 2.5
+**Built:**
+- **Core animation types** (`FeralFrenzy.Core/src/core/animation/`): `AnimationInput` record, `AnimationRule<T>` record, `AnimationRuleSet<T>` first-match evaluator, `AnimationStateMachine<T>` with one-shot blocking (`_finishedOneShots`) and `Reset()` for respawn. Zero Godot dependencies.
+- **Content-layer animation enums** (`FeralFrenzy.Core/src/core/data/content/`): `FFPlayerAnimationState`, `FFSimpleEnemyState`, `FFBossAnimationState`, `FFMountedDinoAnimationState`. All FF-prefixed.
+- **Sprite contract type** (`FFSpriteContract` / `FFSpriteAnimation` / `FFSpriteFrame`): JSON-deserializable records for the tile-indexed spritesheet contract format.
+- **Godot base classes** (`src/godot/core/`): `IEntitySubsystem` interface, `GameEntity` (seals `_PhysicsProcess`, routes to `OnPhysicsProcess`), `GameArea`, `GameStatic`. All with `RegisterSubsystem` and `ConfigureAnimation<T>` entry points.
+- **Animation driver** (`src/godot/animation/`): `AnimationDriverBase` abstract node, `AnimationDriver<T>` generic driver (subscribes `AnimationFinished`, guards `HasAnimation` before `Play()`), `AnimationBuilder<T>` fluent builder (`WithSprite`, `WithAnimationPlayer`, `WithRules`, `WithCustomEvaluator`, `WithOneShots`, `WithClips`, `WithInput`, `Build()`).
+- **SpriteFramesBuilder**: builds `SpriteFrames` from `FFSpriteContract` using x/y tile indices → `Rect2`; `LoadContract()` reads adjacent JSON via `FileAccess`.
+- **Migrated EnemyHost**: `CharacterBody2D` → `GameEntity`; renamed `_PhysicsProcess` → `OnPhysicsProcess(float)`; added `IsAttacking` property; added `ConfigureAnimation<FFSimpleEnemyState>()` block conditional on `AnimatedSprite2D` presence.
+- **Migrated PlayerController**: `CharacterBody2D` → `GameEntity`; replaced `AnimatedSprite2D`/`UpdateAnimation()`/`TryPlayAnimation()` with `Sprite2D _bodySprite` and `ConfigureAnimation<FFPlayerAnimationState>()`; added `_facingLeft`, `_jumpExecutedThisFrame`, `_tookHitThisFrame` flags; `IsDead || IsDown` mapped to `IsDead` animation input so Death plays for both states; WalkStart → Walk transition via two-rule pattern; UpdateArmAim() for arm/weapon sprite rotation.
+- **Updated character scenes** (`Bear.tscn`, `HoneyBadger.tscn`): removed `AnimatedSprite2D` + placeholder SpriteFrames; added `AnimationPlayer`, `BodySprite (Sprite2D)`, `ArmSprite (Sprite2D)`, `WeaponSprite (Sprite2D)`.
+- **HitboxDebugController** (`src/godot/debug/`): cycles loaded character scenes with Tab, shows animation state and position in a debug label, enables collision hints.
+- **HitboxDebugLevel.tscn** (`scenes/debug/`): floor `StaticBody2D` + `WorldBoundaryShape2D`, `DebugLabel`, `HitboxDebugController` root.
+- **AnimationStateMachineTests** (19 tests): basic transitions, global transitions, one-shot blocking, rule-set integration, JustTransitioned flag, Reset.
+- **AnimationRuleSetTests** (4 tests): first match wins, no match returns default, second rule match, current state passed to condition.
+- **CLAUDE.md updated**: Animation Architecture Rule section added; Never Do entries for Play() in game logic, animation in OnPhysicsProcess, driver registration order, AnimationInput raw input fields, per-entity transition classes, `_PhysicsProcess` override in GameEntity subclasses. Quick Reference rows added.
+
+**Decisions:**
+- `EnemyHost.IsAttacking` is a plain `bool` property set by behavior nodes, read by the animation input closure. No virtual method needed — behaviors write it directly since EnemyHost is the only enemy base class.
+- WalkStart → Walk transition uses two rules: `(c == Walk && isMoving) → Walk` and `(c == WalkStart && isMoving) → Walk`. The one-shot block on WalkStart ensures it plays fully before the second rule fires.
+- `IsDead` animation input maps to `IsDead || IsDown` in PlayerController so the Death animation plays whether the player is dead or merely downed. Downed players run no physics anyway, so the distinction is visual only.
+- `_tookHitThisFrame` is reset at the START of `OnPhysicsProcess`, not the end. Damage fires during collision callbacks (same physics frame), so the flag is set during frame N and read by the animation driver after `OnPhysicsProcess` returns.
+- AnimationPlayer conditional: `ConfigureAnimation` is only called when `GetNodeOrNull<AnimationPlayer>()` is non-null. Prevents crashes on scenes not yet updated to the new structure. Scenes now have AnimationPlayer so this fires correctly.
+- SA1623 (StyleCop bool property XML doc format) fired on `IsAttacking`. Fixed by converting the `<summary>` block to an inline comment — SA0001 is suppressed so XML docs are not required.
+- Namespace collision between `FeralFrenzy.Godot` and `Godot.Collections` when using `GetNodesInGroup()` — resolved with `var` for the return type in EnemyHost.
+
+**Deferred:**
+- Hand-keying AnimationPlayer clips in Godot editor — developer does this when art arrives.
+- SpriteFramesBuilder wiring in enemy controllers — developer drops spritesheet + contract, then Claude Code uncomments the initialization lines.
+- Migrating `ProjectileController` and `SpinningBladeProjectile` from `Area2D` to `GameArea` — not in Phase 2.5 scope.
+- Boss `FFBossAnimationState` + `WithCustomEvaluator` wiring — boss controller exists but animation is placeholder; plug-in points documented in Phase 2.5 brief.
+- MountedDino `FFMountedDinoAnimationState` wiring — same deferral.
+
+**Next:** Phase 3 — Chapter generator, WFC level assembly, full playthroughable loop with generated segments.
+
+**Tests added:**
+- `FeralFrenzy.Tests/animation/AnimationStateMachineTests.cs` (19 tests)
+- `FeralFrenzy.Tests/animation/AnimationRuleSetTests.cs` (4 tests)
+
 ## 2026-04-25 — Phase 2 confirmed complete: input swap, gamepad feel, enemy contact damage, boss i-frames
 
 **Phase:** 2 (final sign-off)

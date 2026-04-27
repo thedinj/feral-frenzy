@@ -653,6 +653,37 @@ _tick = node as ITickBehavior
 
 **`EnemyVisuals` handles hit flash only** (subscribed to `HpChanged`). `DefaultDeath` handles the full death sequence — animation + `AnimationFinished → QueueFree` — or a fade tween if no death animation exists. Do not put `QueueFree` logic in `EnemyVisuals`.
 
+### The Animation Architecture Rule — Established Phase 2.5
+
+Three tiers. Use the right tier — never over-engineer or under-engineer.
+
+**Tier 1 — Simple enemies (AnimatedSprite2D + contract JSON):**
+Entities with one sprite, four or fewer animation states, no multi-node coordination.
+SpriteFrames built from contract JSON at startup via `SpriteFramesBuilder`. Animation configured via
+`ConfigureAnimation` builder with `WithSprite()` and `WithRules()`.
+
+**Tier 2 — Complex enemies (AnimatedSprite2D + custom evaluator):**
+Entities with unusual state logic (MountedDino two-phase). Same AnimatedSprite2D rendering path
+but `WithCustomEvaluator()` instead of `WithRules()`.
+
+**Tier 3 — Characters and boss (AnimationPlayer + builder):**
+Entities with multiple sprite layers, hitbox changes tied to animation, or shader coordination.
+Clips hand-keyed in Godot editor by developer. Configured via `ConfigureAnimation` builder with
+`WithAnimationPlayer()`.
+
+The animation driver must always be the last `RegisterSubsystem` call in `_Ready()`. Always register
+status effects and other subsystems before animation.
+
+Controllers never call animation methods directly. No `_sprite.Play()` in game logic. No
+`JustTransitioned` checks in controllers. The builder and driver own all of this.
+
+`AnimationInput` contains facts about entity state, never raw input events. `IsJumping` means the
+controller confirmed a jump executed this frame — not that Jump is currently pressed.
+
+The `GameEntity` base class seals `_PhysicsProcess`. All controllers implement `OnPhysicsProcess(float delta)` instead. After `OnPhysicsProcess` returns, `GameEntity` ticks all registered subsystems in registration order.
+
+`AnimationDriver` guards `Play()` calls with `HasAnimation()` to prevent console errors when SpriteFrames are placeholder or null. Debug scene `HitboxDebugLevel.tscn` (`scenes/debug/`) is used to verify animation state and collision shapes when art arrives.
+
 ### The GameStateManager Event Rule
 
 `GameStateManager.StateChanged` is a plain C# event, not a Godot `[Signal]`. It passes `GameStateNode` instances directly — no casting, no magic numbers.
@@ -710,6 +741,12 @@ There is no `GameState` enum. Each state is its own class. `Current` returns `Ga
 - Call `LevelController.Instance` or `AssetRegistry` from a behavior node — signal up via `host.RequestProjectile` / `host.RequestMinions`
 - Use `GetNode<IInterface>(path)` — Godot can't resolve interface types; use `GetNodeOrNull<Node>(path) as IInterface ?? throw`
 - Put death sequence logic (QueueFree, tween) in `EnemyVisuals` — that belongs in `DefaultDeath` or `BossDeath`
+- Call `_sprite.Play()` or `_animPlayer.Play()` from game logic — use the `ConfigureAnimation` builder
+- Put animation logic in `OnPhysicsProcess` — it belongs in the builder setup in `_Ready()`
+- Register the animation driver before other subsystems — it must be last so it reads finalized game state
+- Put raw input fields (`JumpPressed`, `SlidePressed`) in `AnimationInput` — only entity state facts belong there
+- Create a separate transition class per entity — use lambdas and closures in `WithRules` / `WithCustomEvaluator` instead
+- Override `_PhysicsProcess` in any `GameEntity` / `GameArea` / `GameStatic` subclass — it is sealed; implement `OnPhysicsProcess` instead
 
 ---
 
@@ -787,4 +824,12 @@ This is the project memory. It is how future sessions pick up without relitigati
 | How do enemy behaviors summon minions? | `host.RequestMinions(assetKey, offset1, offset2)` — LevelController subscribes and uses EntityPool |
 | How to resolve an interface from a node path? | `GetNodeOrNull<Node>(path) as IInterface ?? throw` — Godot can't do `GetNode<IInterface>()` |
 | Where is EnemyHost component spec? | `src/godot/enemies/EnemyHost.cs` + `behaviors/` + `components/` |
+| Animation tier for simple enemy? | Tier 1 — AnimatedSprite2D + contract JSON via `SpriteFramesBuilder` |
+| Animation tier for characters? | Tier 3 — AnimationPlayer + `ConfigureAnimation` builder |
+| Where do frame coords come from? | `sprite_contract.json` x/y tile indices — `SpriteFramesBuilder` converts to Rect2 |
+| Where do clip keyframes come from? | Developer hand-keys in Godot editor AnimationPlayer |
+| What goes in AnimationInput? | Entity state facts only — never raw input fields |
+| What is the base class for CharacterBody2D entities? | `GameEntity` — seals `_PhysicsProcess`, subclasses implement `OnPhysicsProcess` |
+| How is animation configured? | `ConfigureAnimation<TState>()` fluent builder in `_Ready()` — never call Play() in game logic |
+| Where is the hitbox debug scene? | `scenes/debug/HitboxDebugLevel.tscn` — Tab cycles entities, collisions visible |
 | What runs before every commit? | `dotnet build` + `dotnet test` + `dotnet format --verify-no-changes` |

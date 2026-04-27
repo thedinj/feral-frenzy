@@ -7,6 +7,13 @@ public static class NodePaths
     public const string CollisionShape = "CollisionShape2D";
     public const string WeaponMount = "WeaponMount";
 
+    // Character animation nodes (Tier 3 — AnimationPlayer path)
+    public const string AnimationPlayer = "AnimationPlayer";
+    public const string BodySprite = "BodySprite";
+    public const string ArmSprite = "ArmSprite";
+    public const string WeaponSprite = "WeaponSprite";
+    public const string SlideCollisionShape = "SlideCollisionShape2D";
+
     // Level scene structure
     public const string LevelEntities = "Entities";
     public const string LevelPlayerSpawns = "PlayerSpawns";

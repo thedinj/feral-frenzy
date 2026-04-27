@@ -1,0 +1,107 @@
+---
+name: feral-frenzy-sprite-wire
+description: "Use this skill whenever a new spritesheet or contract JSON has been dropped into the Feral Frenzy project and needs to be wired up. Triggers on phrases like 'wire up the sprite', 'new spritesheet arrived', 'I dropped in the art', 'hook up the enemy sprite', 'integrate the spritesheet', 'sprite contract is ready', 'connect the animation frames', or any mention of a PNG or contract JSON file being added to assets/sprites/. Also use when the developer asks to verify import settings on a spritesheet, generate keyframe reference documents for AnimationPlayer clips, or check that SpriteFramesBuilder is hooked up correctly. This skill handles the full integration pipeline: import verification, AssetKeys registration, manifest update, SpriteFramesBuilder hookup, and keyframe reference generation."
+---
+
+# Feral Frenzy — Sprite Wire Skill
+
+Integrates a new spritesheet + contract JSON into the Feral Frenzy project.
+Covers simple enemies (AnimatedSprite2D path) and characters (AnimationPlayer path).
+
+## Before Starting
+
+Read the project architecture documents if not already in context:
+- `CLAUDE.md` — asset registry rules, three-layer separation, never-do list
+- `docs/phase_briefs/02_5_phase_2_5.md` ? Developer Plug-in Points section
+
+## Step 1 — Identify What Arrived
+
+Determine entity type and rendering path from the user's message or by inspecting the dropped files.
+
+**Simple enemy** (AnimatedSprite2D path):
+- Has a `_sprite_contract.json` alongside the PNG
+- Entity is GroundPatroller, AerialDiver, MountedDino, PteroBomber, or similar
+- No AnimationPlayer involved
+
+**Character** (AnimationPlayer path):
+- Bear, Honey Badger, Croc, Hammerhead
+- May have multiple sheets: body, arm, weapon
+- No contract JSON needed for SpriteFramesBuilder — clips are hand-keyed
+- Generates a keyframe reference document instead
+
+**Boss** (AnimationPlayer path, same as character):
+- PlaceholderBoss or real villain
+- Treated identically to character path
+
+If unclear, ask: `"Is this a simple enemy or a character/boss?"`
+
+---
+
+## Path A — Simple Enemy
+
+Follow `references/simple-enemy-path.md` for the full step-by-step.
+
+Quick summary:
+1. Verify import settings
+2. Derive asset key from entity name
+3. Add key to `AssetKeys.cs`
+4. Add entry to `assets_manifest.json`
+5. Uncomment / add `SpriteFramesBuilder` lines in controller `_Ready()`
+6. Validate contract JSON structure
+7. Generate verification report
+
+---
+
+## Path B — Character or Boss
+
+Follow `references/character-path.md` for the full step-by-step.
+
+Quick summary:
+1. Verify import settings on all sheets
+2. Add asset keys to `AssetKeys.cs`
+3. Add entries to `assets_manifest.json`
+4. Assign textures to Sprite2D nodes in the `.tscn`
+5. Generate keyframe reference document (the Rect2 values to enter in AnimationPlayer)
+6. Instructions for developer: how to use the keyframe doc in Godot editor
+
+---
+
+## Asset Key Naming Convention
+
+Derive from entity name — always lowercase with underscores:
+
+| Entity | Key pattern | Example |
+|---|---|---|
+| Simple enemy spritesheet | `spritesheet_{entity_key}` | `spritesheet_ground_patroller` |
+| Character body sheet | `spritesheet_{char}_body` | `spritesheet_bear_body` |
+| Character arm sheet | `spritesheet_{char}_arm` | `spritesheet_bear_arm` |
+| Character weapon sheet | `spritesheet_{char}_weapon` | `spritesheet_bear_weapon` |
+
+Entity keys come from the contract JSON `entityKey` field or from `FFCharacterDefinition.CharacterKey`.
+
+---
+
+## Import Settings — Always Verify First
+
+Every spritesheet must have these settings or sprites will be blurry. Check before anything else.
+
+In Godot FileSystem panel:
+1. Click the PNG file
+2. Open Import tab
+3. Confirm:
+   - **Filter**: Nearest
+   - **Mipmaps**: Off (Generate = false)
+   - **Compress Mode**: Lossless
+4. If any setting is wrong: fix it, click Reimport, confirm no blurring
+
+This is a hard requirement. Do not proceed if import settings are wrong.
+
+---
+
+## Never Do
+
+- Add `GD.Load<T>()` with a hardcoded path — always go through AssetRegistry
+- Skip import settings verification — always check first
+- Modify AnimationPlayer clips — that is the developer's job
+- Create a new AssetKeys constant that duplicates an existing one — check first
+- Write a contract JSON — the developer writes this alongside the art in Aseprite
