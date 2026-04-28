@@ -69,7 +69,6 @@ public partial class AssetRegistry : Node
             }
         }
 
-        GD.Print($"AssetRegistry: loaded {_manifest.Count} asset entries.");
         ValidateScenes();
     }
 

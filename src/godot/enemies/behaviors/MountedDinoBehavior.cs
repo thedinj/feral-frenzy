@@ -45,14 +45,12 @@ public partial class MountedDinoBehavior : Node, ITickBehavior, IDamageBehavior
             }
 
             _riderCurrentHp -= impact;
-            GD.Print($"[MountedDino] Rider hit — riderHp={_riderCurrentHp:F1}/{RiderMaxHp}");
 
             if (_riderCurrentHp <= 0f)
             {
                 host.NotifyEnemyKilled();
                 _phase = Phase.Dino;
                 host.CurrentHp = DinoMaxHp;
-                GD.Print($"[MountedDino] Rider died — transitioning to Dino phase. DinoHp={DinoMaxHp}");
             }
 
             return false;
@@ -101,12 +99,10 @@ public partial class MountedDinoBehavior : Node, ITickBehavior, IDamageBehavior
         float dist = host.GlobalPosition.DistanceTo(target.GlobalPosition);
         if (dist > ShootRange)
         {
-            GD.Print($"[MountedDino] Rider: player at dist={dist:F0}, out of ShootRange={ShootRange}.");
             _fireCooldown = 1f; // check again in 1s rather than immediately next frame
             return;
         }
 
-        GD.Print($"[MountedDino] Rider: firing at player dist={dist:F0}.");
         _fireCooldown = FireRate;
         Vector2 direction = (target.GlobalPosition - host.GlobalPosition).Normalized();
         host.RequestProjectile(direction, 200f, 1f);
@@ -127,14 +123,12 @@ public partial class MountedDinoBehavior : Node, ITickBehavior, IDamageBehavior
             }
 
             _dinoDirectionSet = true;
-            GD.Print($"[MountedDino] Dino phase started, charging dir={_chargeDirection}.");
         }
 
         if (host.IsOnWall())
         {
             _chargeDirection *= -1f;
             _wallBounceCount++;
-            GD.Print($"[MountedDino] Dino: wall bounce #{_wallBounceCount}, reversing direction.");
         }
 
         host.Velocity = host.Velocity with { X = ChargeSpeed * _chargeDirection };

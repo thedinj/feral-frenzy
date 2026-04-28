@@ -208,7 +208,6 @@ public partial class LevelController : Node2D
 
     private void OnEntityProjectileSpawnRequested(Vector2 spawnPos, Vector2 dir, float speed, float impact)
     {
-        GD.Print($"[LevelController] ProjectileSpawnRequested at {spawnPos} dir={dir}");
         PackedScene? scene = _registry.GetScene(AssetKeys.SceneProjectile);
         if (scene is null)
         {
@@ -331,19 +330,14 @@ public partial class LevelController : Node2D
     {
         // Static enemies placed directly in Level.tscn are never passed through AddToEntities,
         // so their projectile/minion signals need to be connected here at level activation.
-        int wired = 0;
         foreach (Node child in GetChildren())
         {
             if (child is EnemyHost enemy)
             {
                 enemy.ProjectileSpawnRequested += OnEntityProjectileSpawnRequested;
                 enemy.MinionSummonRequested += OnMinionSummonRequested;
-                GD.Print($"[LevelController] Wired static enemy: {enemy.Name} at {enemy.GlobalPosition}");
-                wired++;
             }
         }
-
-        GD.Print($"[LevelController] WireStaticEnemies: {wired} enemies wired.");
     }
 
     private void SpawnScaledEnemies()

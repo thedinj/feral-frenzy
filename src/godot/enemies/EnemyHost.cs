@@ -68,6 +68,7 @@ public partial class EnemyHost : GameEntity
             ?? throw new InvalidOperationException(
                 $"{Name}: '{NodePaths.EnemyBehavior}' does not implement ITickBehavior.");
         _damageBehavior = behaviorNode as IDamageBehavior;
+        IAnimationSetup? animSetup = behaviorNode as IAnimationSetup;
 
         Node? gravityNode = GetNodeOrNull<Node>(NodePaths.EnemyGravity)
             ?? throw new InvalidOperationException(
@@ -81,48 +82,57 @@ public partial class EnemyHost : GameEntity
 
         AddToGroup("enemies");
 
-        // Animation — Tier 1 (AnimatedSprite2D). SpriteFrames may be null until art arrives;
-        // Play() calls are guarded by HasAnimation() in AnimationDriver.Tick().
-        AnimatedSprite2D? sprite = GetNodeOrNull<AnimatedSprite2D>(NodePaths.AnimatedSprite);
-        if (sprite is not null)
+        // Animation. Behavior node may implement IAnimationSetup to own configuration
+        // entirely (custom state enum, custom rules). Otherwise EnemyHost applies the
+        // FFSimpleEnemyState defaults — all five states, subset-safe (missing clips are
+        // silently skipped by the driver).
+        if (animSetup is not null)
         {
-            ConfigureAnimation<FFSimpleEnemyState>()
-                .WithSprite(sprite)
-                .WithRules(
-                    defaultState: FFSimpleEnemyState.Idle,
-                    rules: new List<AnimationRule<FFSimpleEnemyState>>
+            animSetup.Configure(this);
+        }
+        else
+        {
+            AnimatedSprite2D? sprite = GetNodeOrNull<AnimatedSprite2D>(NodePaths.AnimatedSprite);
+            if (sprite is not null)
+            {
+                ConfigureAnimation<FFSimpleEnemyState>()
+                    .WithSprite(sprite)
+                    .WithRules(
+                        defaultState: FFSimpleEnemyState.Idle,
+                        rules: new List<AnimationRule<FFSimpleEnemyState>>
+                        {
+                            new AnimationRule<FFSimpleEnemyState>((_, i) => i.IsDead, FFSimpleEnemyState.Death),
+                            new AnimationRule<FFSimpleEnemyState>((_, i) => i.TookHit, FFSimpleEnemyState.Hit),
+                            new AnimationRule<FFSimpleEnemyState>((_, i) => i.IsAttacking, FFSimpleEnemyState.Attack),
+                            new AnimationRule<FFSimpleEnemyState>((_, i) => i.IsMoving, FFSimpleEnemyState.Walk),
+                        })
+                    .WithOneShots(new List<FFSimpleEnemyState>
                     {
-                        new AnimationRule<FFSimpleEnemyState>((_, i) => i.IsDead, FFSimpleEnemyState.Death),
-                        new AnimationRule<FFSimpleEnemyState>((_, i) => i.TookHit, FFSimpleEnemyState.Hit),
-                        new AnimationRule<FFSimpleEnemyState>((_, i) => i.IsAttacking, FFSimpleEnemyState.Attack),
-                        new AnimationRule<FFSimpleEnemyState>((_, i) => i.IsMoving, FFSimpleEnemyState.Walk),
+                        FFSimpleEnemyState.Attack,
+                        FFSimpleEnemyState.Hit,
+                        FFSimpleEnemyState.Death,
                     })
-                .WithOneShots(new List<FFSimpleEnemyState>
-                {
-                    FFSimpleEnemyState.Attack,
-                    FFSimpleEnemyState.Hit,
-                    FFSimpleEnemyState.Death,
-                })
-                .WithClips(new Dictionary<FFSimpleEnemyState, string>
-                {
-                    [FFSimpleEnemyState.Idle] = AnimationNames.Idle,
-                    [FFSimpleEnemyState.Walk] = AnimationNames.Walk,
-                    [FFSimpleEnemyState.Attack] = AnimationNames.Attack,
-                    [FFSimpleEnemyState.Hit] = AnimationNames.Hit,
-                    [FFSimpleEnemyState.Death] = AnimationNames.Death,
-                })
-                .WithInput(() => new AnimationInput(
-                    IsMoving: Mathf.Abs(Velocity.X) > 0.1f,
-                    IsOnFloor: IsOnFloor(),
-                    IsOnWall: IsOnWall(),
-                    IsJumping: false,
-                    IsSliding: false,
-                    IsAttacking: IsAttacking,
-                    IsDead: IsDead,
-                    TookHit: IsHitStunned,
-                    VelocityY: Velocity.Y,
-                    VelocityX: Velocity.X))
-                .Build();
+                    .WithClips(new Dictionary<FFSimpleEnemyState, string>
+                    {
+                        [FFSimpleEnemyState.Idle] = AnimationNames.Idle,
+                        [FFSimpleEnemyState.Walk] = AnimationNames.Walk,
+                        [FFSimpleEnemyState.Attack] = AnimationNames.Attack,
+                        [FFSimpleEnemyState.Hit] = AnimationNames.Hit,
+                        [FFSimpleEnemyState.Death] = AnimationNames.Death,
+                    })
+                    .WithInput(() => new AnimationInput(
+                        IsMoving: Mathf.Abs(Velocity.X) > 0.1f,
+                        IsOnFloor: IsOnFloor(),
+                        IsOnWall: IsOnWall(),
+                        IsJumping: false,
+                        IsSliding: false,
+                        IsAttacking: IsAttacking,
+                        IsDead: IsDead,
+                        TookHit: IsHitStunned,
+                        VelocityY: Velocity.Y,
+                        VelocityX: Velocity.X))
+                    .Build();
+            }
         }
     }
 
@@ -206,6 +216,12 @@ public partial class EnemyHost : GameEntity
 
         return nearest;
     }
+
+    // Exposes ConfigureAnimation to IAnimationSetup implementors (behavior nodes).
+    // Call only from IAnimationSetup.Configure() — never after _Ready() completes.
+    public AnimationBuilder<TState> BuildAnimation<TState>()
+        where TState : struct, Enum
+        => ConfigureAnimation<TState>();
 
     public void NotifyEnemyKilled() => _gameState.NotifyEnemyKilled();
 

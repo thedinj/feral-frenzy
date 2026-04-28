@@ -27,7 +27,6 @@ public partial class DensityTestController : Node2D
         _fpsLogTimer -= (float)delta;
         if (_fpsLogTimer <= 0f)
         {
-            GD.Print($"DensityTest FPS: {Engine.GetFramesPerSecond()}, entities: {TargetEntityCount}");
             _fpsLogTimer = 5f;
         }
     }

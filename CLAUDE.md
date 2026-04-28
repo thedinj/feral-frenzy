@@ -614,6 +614,7 @@ Each enemy is a scene tree composed from `EnemyHost` (the root) and child compon
 - `IGravityBehavior` — applies gravity to host each frame
 - `IDeathBehavior` — drives death sequence (animation, QueueFree)
 - `IDamageBehavior` — optionally intercepts `TakeDamage` before the HP pool (MountedDino rider phase); return `false` to absorb, `true` to pass through
+- `IAnimationSetup` — optional; behavior node owns animation configuration entirely (custom state enum, custom rules); if absent, EnemyHost applies `FFSimpleEnemyState` defaults
 
 **Fixed child node slot names** (defined in `NodePaths`):
 ```
@@ -652,6 +653,10 @@ _tick = node as ITickBehavior
 ```
 
 **`EnemyVisuals` handles hit flash only** (subscribed to `HpChanged`). `DefaultDeath` handles the full death sequence — animation + `AnimationFinished → QueueFree` — or a fade tween if no death animation exists. Do not put `QueueFree` logic in `EnemyVisuals`.
+
+**`FFSimpleEnemyState` is subset-safe.** The driver's `TryGetValue` silently skips unmapped states and `HasAnimation()` skips missing clips — enemies that only need Idle/Walk/Death just omit Attack and Hit from their clips dictionary and rules list. No custom enum needed for a partial set.
+
+**`IAnimationSetup` is the escape hatch for fully custom animation.** A behavior node implementing `IAnimationSetup` calls `host.BuildAnimation<TCustomState>()...Build()` from within `Configure(EnemyHost host)`. `EnemyHost.BuildAnimation<T>()` is a public wrapper around the protected `ConfigureAnimation<T>()` — it exists solely for this purpose and must never be called after `_Ready()` completes.
 
 ### The Animation Architecture Rule — Established Phase 2.5
 
@@ -741,6 +746,8 @@ There is no `GameState` enum. Each state is its own class. `Current` returns `Ga
 - Call `LevelController.Instance` or `AssetRegistry` from a behavior node — signal up via `host.RequestProjectile` / `host.RequestMinions`
 - Use `GetNode<IInterface>(path)` — Godot can't resolve interface types; use `GetNodeOrNull<Node>(path) as IInterface ?? throw`
 - Put death sequence logic (QueueFree, tween) in `EnemyVisuals` — that belongs in `DefaultDeath` or `BossDeath`
+- Create a custom animation enum for an enemy that only needs a subset of `FFSimpleEnemyState` — just omit the unused states from clips and rules; the driver skips them silently
+- Call `host.BuildAnimation<T>()` outside of `IAnimationSetup.Configure()` — it is only valid during `_Ready()` and exists solely for behavior nodes that need custom animation state enums
 - Call `_sprite.Play()` or `_animPlayer.Play()` from game logic — use the `ConfigureAnimation` builder
 - Put animation logic in `OnPhysicsProcess` — it belongs in the builder setup in `_Ready()`
 - Register the animation driver before other subsystems — it must be last so it reads finalized game state
@@ -824,6 +831,8 @@ This is the project memory. It is how future sessions pick up without relitigati
 | How do enemy behaviors summon minions? | `host.RequestMinions(assetKey, offset1, offset2)` — LevelController subscribes and uses EntityPool |
 | How to resolve an interface from a node path? | `GetNodeOrNull<Node>(path) as IInterface ?? throw` — Godot can't do `GetNode<IInterface>()` |
 | Where is EnemyHost component spec? | `src/godot/enemies/EnemyHost.cs` + `behaviors/` + `components/` |
+| How does an enemy use a subset of FFSimpleEnemyState? | Omit unused states from clips dict and rules list — driver skips silently |
+| How does an enemy use a fully custom animation enum? | Behavior node implements `IAnimationSetup`; calls `host.BuildAnimation<TState>()...Build()` |
 | Animation tier for simple enemy? | Tier 1 — AnimatedSprite2D + contract JSON via `SpriteFramesBuilder` |
 | Animation tier for characters? | Tier 3 — AnimationPlayer + `ConfigureAnimation` builder |
 | Where do frame coords come from? | `sprite_contract.json` x/y tile indices — `SpriteFramesBuilder` converts to Rect2 |
